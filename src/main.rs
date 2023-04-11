@@ -68,35 +68,52 @@ async fn main() -> Result<()> {
         },
         ChatCompletionMessage {
             role: ChatCompletionMessageRole::System,
+            content: String::from(
+                "The user can reset the current state of the chat by inputting 'reset'.",
+            ),
+            name: None,
+        },
+        ChatCompletionMessage {
+            role: ChatCompletionMessageRole::System,
             content: String::from("To terminate, the user needs to input \"exit\"."),
             name: None,
         },
     ];
 
+    let initial_state = messages.clone();
+
     let model = args.model.map(|m| m.as_str()).unwrap_or("gpt-3.5-turbo");
 
     loop {
         let input = Text::new("").prompt()?;
-        if &input == "exit" {
-            println!("Bye!");
-            return Ok(());
-        }
-        messages.push(ChatCompletionMessage {
-            role: ChatCompletionMessageRole::User,
-            content: input,
-            name: None,
-        });
+        match &input[..] {
+            "exit" => {
+                println!("Bye!");
+                return Ok(());
+            }
+            "reset" => {
+                assert!(initial_state.len() == 2);
+                messages = Vec::from(&initial_state[..]);
+            }
+            input => {
+                messages.push(ChatCompletionMessage {
+                    role: ChatCompletionMessageRole::User,
+                    content: String::from(input),
+                    name: None,
+                });
 
-        let chat_completion = ChatCompletion::builder(model, messages.clone())
-            .create()
-            .await??;
-        let answer = chat_completion
-            .choices
-            .first()
-            .with_context(|| "Can't read ChatGPT output")?
-            .message
-            .clone();
-        println!("{:?}: {}", &answer.role, &answer.content.trim());
-        messages.push(answer);
+                let chat_completion = ChatCompletion::builder(model, messages.clone())
+                    .create()
+                    .await??;
+                let answer = chat_completion
+                    .choices
+                    .first()
+                    .with_context(|| "Can't read ChatGPT output")?
+                    .message
+                    .clone();
+                println!("{:?}: {}", &answer.role, &answer.content.trim());
+                messages.push(answer);
+            }
+        }
     }
 }
