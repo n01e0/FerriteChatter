@@ -28,13 +28,22 @@ async fn main() -> Result<()> {
     );
     set_key(key);
 
-    let mut messages = vec![ChatCompletionMessage {
-        role: ChatCompletionMessageRole::System,
-        content: args
-            .general
-            .unwrap_or(String::from("You are an engineer's assistant.")),
-        name: None,
-    }];
+    let mut messages = vec![
+        ChatCompletionMessage {
+            role: ChatCompletionMessageRole::System,
+            content: args
+                .general
+                .unwrap_or(String::from("You are an engineer's assistant.")),
+            name: None,
+        },
+        ChatCompletionMessage {
+            role: ChatCompletionMessageRole::System,
+            content: String::from(
+                "To terminate, the user needs to input \"exit\"."
+            ),
+            name: None,
+        },
+    ];
 
     loop {
         let input = Text::new("").prompt()?;
