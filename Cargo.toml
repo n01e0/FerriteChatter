@@ -1,6 +1,6 @@
 [package]
 name = "FerriteChatter"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["n01e0 <reoshiseki@gmail.com>"]
 edition = "2021"
 description = "ChatGPT CLI"
@@ -15,7 +15,7 @@ path = "src/main.rs"
 
 [dependencies]
 anyhow = "1.0.70"
-clap = "4.2.1"
+clap = { version="4.2.1", features = ["derive"] }
 inquire = "0.6.1"
 openai = "1.0.0-alpha.8"
 tokio = { version="1.27.0", features=["full"] }
