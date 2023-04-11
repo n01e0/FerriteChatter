@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 use inquire::Text;
 use openai::{
     chat::{ChatCompletion, ChatCompletionMessage, ChatCompletionMessageRole},
@@ -9,13 +9,43 @@ use std::env;
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
-pub struct Args {
+struct Args {
     /// Open Prompt(General Prompt)
     #[clap(long = "general", short = 'g')]
     general: Option<String>,
     /// OenAI API Key
     #[clap(long = "key", short = 'k')]
     key: Option<String>,
+    /// Model. now only "gpt-3.5-turbo" and "gpt-3.5-turbo-0301" supported.
+    /// default is "gpt-3.5-turbo"
+    #[clap(long = "model", short = 'm', value_enum)]
+    model: Option<Model>,
+}
+
+#[derive(Debug, Eq, PartialEq, ValueEnum, Clone)]
+#[allow(non_camel_case_types)]
+enum Model {
+    //    Gpt_4,
+    //    Gpt_4_0314,
+    //    Gpt_4_32k,
+    //    Gpt_4_32k_0314,
+    #[clap(name = "gpt-3.5-turbo")]
+    Gpt_3_5_Turbo,
+    #[clap(name = "gpt-3.5-turbo-0301")]
+    Gpt_3_5_Turbo_0301,
+}
+
+impl Model {
+    fn as_str(&self) -> &'static str {
+        match self {
+            //            Self::Gpt_4 => "gpt-4",
+            //            Self::Gpt_4_0314 => "gpt-4-0314",
+            //            Self::Gpt_4_32k => "gpt-4-32k",
+            //            Self::Gpt_4_32k_0314 => "gpt-4-32k-0314",
+            Self::Gpt_3_5_Turbo => "gpt-3.5-turbo",
+            Self::Gpt_3_5_Turbo_0301 => "gpt-3.5-turbo-0301",
+        }
+    }
 }
 
 #[tokio::main]
@@ -38,12 +68,12 @@ async fn main() -> Result<()> {
         },
         ChatCompletionMessage {
             role: ChatCompletionMessageRole::System,
-            content: String::from(
-                "To terminate, the user needs to input \"exit\"."
-            ),
+            content: String::from("To terminate, the user needs to input \"exit\"."),
             name: None,
         },
     ];
+
+    let model = args.model.map(|m| m.as_str()).unwrap_or("gpt-3.5-turbo");
 
     loop {
         let input = Text::new("").prompt()?;
@@ -57,7 +87,7 @@ async fn main() -> Result<()> {
             name: None,
         });
 
-        let chat_completion = ChatCompletion::builder("gpt-3.5-turbo", messages.clone())
+        let chat_completion = ChatCompletion::builder(model, messages.clone())
             .create()
             .await??;
         let answer = chat_completion
