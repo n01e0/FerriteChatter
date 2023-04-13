@@ -18,7 +18,7 @@ struct Args {
     key: Option<String>,
     /// Model. now only "gpt-3.5-turbo" and "gpt-3.5-turbo-0301" supported.
     /// default is "gpt-3.5-turbo"
-    #[clap(long = "model", short = 'm', value_enum)]
+    #[clap(long = "model", short = 'm', value_enum, default_value = "gpt-3.5-turbo")]
     model: Option<Model>,
 }
 
@@ -82,7 +82,7 @@ async fn main() -> Result<()> {
 
     let initial_state = messages.clone();
 
-    let model = args.model.map(|m| m.as_str()).unwrap_or("gpt-3.5-turbo");
+    let model = args.model.unwrap().as_str();
 
     loop {
         let input = Text::new("").prompt()?;
@@ -92,7 +92,6 @@ async fn main() -> Result<()> {
                 return Ok(());
             }
             "reset" => {
-                assert!(initial_state.len() == 2);
                 messages = Vec::from(&initial_state[..]);
             }
             input => {
