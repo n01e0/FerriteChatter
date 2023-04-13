@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use clap::{Parser, ValueEnum};
-use inquire::Text;
+use inquire::{Text, Editor};
 use openai::{
     chat::{ChatCompletion, ChatCompletionMessage, ChatCompletionMessageRole},
     set_key,
@@ -94,25 +94,36 @@ async fn main() -> Result<()> {
             "reset" => {
                 messages = Vec::from(&initial_state[..]);
             }
-            input => {
-                messages.push(ChatCompletionMessage {
-                    role: ChatCompletionMessageRole::User,
-                    content: String::from(input),
-                    name: None,
-                });
-
-                let chat_completion = ChatCompletion::builder(model, messages.clone())
-                    .create()
-                    .await??;
-                let answer = chat_completion
-                    .choices
-                    .first()
-                    .with_context(|| "Can't read ChatGPT output")?
-                    .message
-                    .clone();
+            "v" => {
+                let input = Editor::new("Prompt:").prompt()?;
+                let answer = ask(&mut messages, input, model).await?;
+                println!("{:?}: {}", &answer.role, &answer.content.trim());
+                messages.push(answer);
+            }
+            _ => {
+                let answer = ask(&mut messages, input, model).await?;
                 println!("{:?}: {}", &answer.role, &answer.content.trim());
                 messages.push(answer);
             }
         }
     }
+}
+
+async fn ask(messages: &mut Vec<ChatCompletionMessage>, input: String, model: &str) -> Result<ChatCompletionMessage> {
+    messages.push(ChatCompletionMessage {
+        role: ChatCompletionMessageRole::User,
+        content: String::from(input),
+        name: None,
+    });
+
+    let chat_completion = ChatCompletion::builder(model, messages.clone())
+        .create()
+        .await??;
+    let answer = chat_completion
+        .choices
+        .first()
+        .with_context(|| "Can't read ChatGPT output")?
+        .message
+        .clone();
+    return Ok(answer)
 }
