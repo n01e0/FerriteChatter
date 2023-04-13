@@ -75,6 +75,13 @@ async fn main() -> Result<()> {
         },
         ChatCompletionMessage {
             role: ChatCompletionMessageRole::System,
+            content: String::from(
+                    "The user can activate the editor by entering 'v', allowing them to input multiple lines of prompts."
+                ),
+            name: None,
+        },
+        ChatCompletionMessage {
+            role: ChatCompletionMessageRole::System,
             content: String::from("To terminate, the user needs to input \"exit\"."),
             name: None,
         },
