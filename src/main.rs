@@ -119,7 +119,7 @@ async fn main() -> Result<()> {
 async fn ask(messages: &mut Vec<ChatCompletionMessage>, input: String, model: &str) -> Result<ChatCompletionMessage> {
     messages.push(ChatCompletionMessage {
         role: ChatCompletionMessageRole::User,
-        content: String::from(input),
+        content: input,
         name: None,
     });
 
@@ -132,5 +132,5 @@ async fn ask(messages: &mut Vec<ChatCompletionMessage>, input: String, model: &s
         .with_context(|| "Can't read ChatGPT output")?
         .message
         .clone();
-    return Ok(answer)
+    Ok(answer)
 }
