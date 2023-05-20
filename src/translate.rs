@@ -1,5 +1,6 @@
 use anyhow::{Context, Result};
 use clap::{Parser, ValueEnum};
+use inquire::{Text, Editor};
 use openai::{
     chat::{ChatCompletion, ChatCompletionMessage, ChatCompletionMessageRole},
     set_key,
@@ -17,10 +18,8 @@ struct Args {
     key: Option<String>,
     /// Model. now only "gpt-3.5-turbo" and "gpt-3.5-turbo-0301" supported.
     /// default is "gpt-3.5-turbo"
-    #[clap(long = "model", short = 'm', value_enum)]
+    #[clap(long = "model", short = 'm', value_enum, default_value = "gpt-3.5-turbo")]
     model: Option<Model>,
-    /// Prompt
-    prompt: String,
 }
 
 #[derive(Debug, Eq, PartialEq, ValueEnum, Clone)]
@@ -68,27 +67,74 @@ async fn main() -> Result<()> {
             role: ChatCompletionMessageRole::System,
             content: args
                 .general
-                .unwrap_or(String::from("Please translate the following statements from Japanese to English.")),
+                .unwrap_or(String::from("Plase translate the following statement from Japanese to English. The answer should be only the English stentences.")),
+            name: None,
+        },
+        ChatCompletionMessage {
+            role: ChatCompletionMessageRole::System,
+            content: String::from(
+                "The user can reset the current state of the chat by inputting 'reset'.",
+            ),
+            name: None,
+        },
+        ChatCompletionMessage {
+            role: ChatCompletionMessageRole::System,
+            content: String::from(
+                    "The user can activate the editor by entering 'v', allowing them to input multiple lines of prompts."
+                ),
+            name: None,
+        },
+        ChatCompletionMessage {
+            role: ChatCompletionMessageRole::System,
+            content: String::from("To terminate, the user needs to input \"exit\"."),
             name: None,
         },
     ];
 
-    let model = args.model.map(|m| m.as_str()).unwrap_or("gpt-3.5-turbo");
+    let initial_state = messages.clone();
 
+    let model = args.model.unwrap().as_str();
+
+    loop {
+        let input = Text::new("").prompt()?;
+        match &input[..] {
+            "exit" => {
+                println!("Bye!");
+                return Ok(());
+            }
+            "reset" => {
+                messages = Vec::from(&initial_state[..]);
+            }
+            "v" => {
+                let input = Editor::new("Prompt:").prompt()?;
+                let answer = ask(&mut messages, input, model).await?;
+                println!("{:?}: {}", &answer.role, &answer.content.trim());
+                messages.push(answer);
+            }
+            _ => {
+                let answer = ask(&mut messages, input, model).await?;
+                println!("{:?}: {}", &answer.role, &answer.content.trim());
+                messages.push(answer);
+            }
+        }
+    }
+}
+
+async fn ask(messages: &mut Vec<ChatCompletionMessage>, input: String, model: &str) -> Result<ChatCompletionMessage> {
     messages.push(ChatCompletionMessage {
         role: ChatCompletionMessageRole::User,
-        content: args.prompt,
+        content: input,
         name: None,
     });
 
     let chat_completion = ChatCompletion::builder(model, messages.clone())
         .create()
         .await??;
-    let answer = &chat_completion
+    let answer = chat_completion
         .choices
         .first()
         .with_context(|| "Can't read ChatGPT output")?
-        .message;
-    println!("Answer: {}", answer.content.trim());
-    Ok(())
+        .message
+        .clone();
+    Ok(answer)
 }

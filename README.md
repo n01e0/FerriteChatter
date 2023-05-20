@@ -10,23 +10,23 @@ OPEN AI API key を環境変数 `OPENAI_API_KEY` に設定。
 あとは実行するだけ
 
 ### Chat mode
-おしゃべりモード（素のChat-GPT）
+対話モード
 
 ```
 $ cargo run --bin fchat
 ```
 
 ### Ask mode 
-技術に関する質問に特化したモードです
+一問一答モード
 
 ```
 $ cargo run --bin fask "質問文"
 ```
 
 ### Translate mode
-日英翻訳に特化したモードです
+日英翻訳に特化したモード（対話モードで実行します）
 
 ```
-$ cargo run --bin ftrans "翻訳したい文章（日本語）"
+$ cargo run --bin ftrans
 ```
 
