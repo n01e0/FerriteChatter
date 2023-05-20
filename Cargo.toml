@@ -15,6 +15,10 @@ path = "src/main.rs"
 name = "fask"
 path = "src/ask.rs"
 
+[[bin]]
+name = "ftrans"
+path = "src/translate.rs"
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
