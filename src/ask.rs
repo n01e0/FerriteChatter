@@ -15,9 +15,8 @@ struct Args {
     /// OenAI API Key
     #[clap(long = "key", short = 'k')]
     key: Option<String>,
-    /// Model. now only "gpt-3.5-turbo" and "gpt-3.5-turbo-0301" supported.
-    /// default is "gpt-3.5-turbo"
-    #[clap(long = "model", short = 'm', value_enum)]
+    /// default is "gpt-4"
+    #[clap(long = "model", short = 'm', value_enum, default_value = "gpt-4")]
     model: Option<Model>,
     /// Prompt
     prompt: String,
@@ -73,7 +72,7 @@ async fn main() -> Result<()> {
         },
     ];
 
-    let model = args.model.map(|m| m.as_str()).unwrap_or("gpt-3.5-turbo");
+    let model = args.model.map(|m| m.as_str()).with_context(|| "something wrong")?;
 
     messages.push(ChatCompletionMessage {
         role: ChatCompletionMessageRole::User,
@@ -83,12 +82,12 @@ async fn main() -> Result<()> {
 
     let chat_completion = ChatCompletion::builder(model, messages.clone())
         .create()
-        .await??;
+        .await?;
     let answer = &chat_completion
         .choices
         .first()
         .with_context(|| "Can't read ChatGPT output")?
         .message;
-    println!("Answer: {}", answer.content.trim());
+    println!("{}", answer.content.trim());
     Ok(())
 }

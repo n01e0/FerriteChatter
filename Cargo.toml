@@ -1,6 +1,6 @@
 [package]
 name = "FerriteChatter"
-version = "1.4.0"
+version = "2.0.0"
 authors = ["n01e0 <reoshiseki@gmail.com>"]
 edition = "2021"
 description = "ChatGPT CLI"
@@ -14,6 +14,10 @@ path = "src/main.rs"
 [[bin]]
 name = "fask"
 path = "src/ask.rs"
+
+[[bin]]
+name = "ftrans"
+path = "src/translate.rs"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
