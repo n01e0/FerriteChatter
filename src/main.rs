@@ -37,29 +37,33 @@ async fn main() -> Result<()> {
     let mut messages = vec![
         ChatCompletionMessage {
             role: ChatCompletionMessageRole::System,
-            content: args
+            content: Some(args
                 .general
-                .unwrap_or(String::from("You are an engineer's assistant.")),
+                .unwrap_or(String::from("You are an engineer's assistant."))),
             name: None,
+            function_call: None,
         },
         ChatCompletionMessage {
             role: ChatCompletionMessageRole::System,
-            content: String::from(
+            content: Some(String::from(
                 "The user can reset the current state of the chat by inputting 'reset'.",
-            ),
+            )),
             name: None,
+            function_call: None,
         },
         ChatCompletionMessage {
             role: ChatCompletionMessageRole::System,
-            content: String::from(
+            content: Some(String::from(
                     "The user can activate the editor by entering 'v', allowing them to input multiple lines of prompts."
-                ),
+                )),
             name: None,
+            function_call: None,
         },
         ChatCompletionMessage {
             role: ChatCompletionMessageRole::System,
-            content: String::from("To terminate, the user needs to input \"exit\"."),
+            content: Some(String::from("To terminate, the user needs to input \"exit\".")),
             name: None,
+            function_call: None,
         },
     ];
 

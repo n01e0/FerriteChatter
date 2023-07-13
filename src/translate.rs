@@ -38,10 +38,11 @@ async fn main() -> Result<()> {
     let mut messages = vec![
         ChatCompletionMessage {
             role: ChatCompletionMessageRole::System,
-            content: args
+            content: Some(args
                 .general
-                .unwrap_or(String::from("次の文章を、日本語の場合は英語に、日本語以外の場合は日本語に翻訳してください。")),
+                .unwrap_or(String::from("次の文章を、日本語の場合は英語に、日本語以外の場合は日本語に翻訳してください。"))),
             name: None,
+            function_call: None,
         },
     ];
 
@@ -49,8 +50,9 @@ async fn main() -> Result<()> {
 
     messages.push(ChatCompletionMessage {
         role: ChatCompletionMessageRole::User,
-        content: args.prompt,
+        content: Some(args.prompt),
         name: None,
+        function_call: None,
     });
 
     let chat_completion = ChatCompletion::builder(model, messages.clone())
@@ -61,6 +63,6 @@ async fn main() -> Result<()> {
         .first()
         .with_context(|| "Can't read ChatGPT output")?
         .message;
-    println!("{}", answer.content.trim());
+    println!("{}", answer.content.clone().with_context(|| "Can't get content").trim());
     Ok(())
 }
