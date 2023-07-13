@@ -8,7 +8,7 @@ use openai::{
     set_key,
 };
 use std::env;
-use ::core::Model;
+use crate::core::Model;
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]

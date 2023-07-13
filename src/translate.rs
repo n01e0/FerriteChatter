@@ -1,6 +1,6 @@
 mod core;
 
-use ::core::Model;
+use crate::core::Model;
 use anyhow::{Context, Result};
 use clap::Parser;
 use openai::{
