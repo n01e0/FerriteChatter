@@ -84,12 +84,14 @@ async fn main() -> Result<()> {
             "v" => {
                 let input = Editor::new("Prompt:").prompt()?;
                 let answer = ask(&mut messages, input, model).await?;
-                println!("{:?}: {}", &answer.role, &answer.content.trim());
+                let content = answer.content.as_ref().with_context(|| "Can't get content")?;
+                println!("{:?}: {}", &answer.role, content.trim());
                 messages.push(answer);
             }
             _ => {
                 let answer = ask(&mut messages, input, model).await?;
-                println!("{:?}: {}", &answer.role, &answer.content.trim());
+                let content = answer.content.as_ref().with_context(|| "Can't get content")?;
+                println!("{:?}: {}", &answer.role, content.trim());
                 messages.push(answer);
             }
         }
@@ -99,8 +101,9 @@ async fn main() -> Result<()> {
 async fn ask(messages: &mut Vec<ChatCompletionMessage>, input: String, model: &str) -> Result<ChatCompletionMessage> {
     messages.push(ChatCompletionMessage {
         role: ChatCompletionMessageRole::User,
-        content: input,
+        content: Some(input),
         name: None,
+        function_call: None,
     });
 
     let chat_completion = ChatCompletion::builder(model, messages.clone())

@@ -63,6 +63,6 @@ async fn main() -> Result<()> {
         .first()
         .with_context(|| "Can't read ChatGPT output")?
         .message;
-    println!("{}", answer.content.clone().with_context(|| "Can't get content").trim());
+    println!("{}", answer.content.clone().with_context(|| "Can't get content")?.trim());
     Ok(())
 }
