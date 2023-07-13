@@ -1,11 +1,14 @@
+mod core;
+
 use anyhow::{Context, Result};
-use clap::{Parser, ValueEnum};
+use clap::Parser;
 use inquire::{Text, Editor};
 use openai::{
     chat::{ChatCompletion, ChatCompletionMessage, ChatCompletionMessageRole},
     set_key,
 };
 use std::env;
+use ::core::Model;
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -19,36 +22,6 @@ struct Args {
     /// default is "gpt-4-32k"
     #[clap(long = "model", short = 'm', value_enum, default_value = "gpt-4")]
     model: Option<Model>,
-}
-
-#[derive(Debug, Eq, PartialEq, ValueEnum, Clone)]
-#[allow(non_camel_case_types)]
-enum Model {
-    #[clap(name = "gpt-4")]
-    Gpt_4,
-    #[clap(name = "gpt-4-0314")]
-    Gpt_4_0314,
-    #[clap(name = "gpt-4-32k")]
-    Gpt_4_32k,
-    #[clap(name = "gpt-4-32k-0314")]
-    Gpt_4_32k_0314,
-    #[clap(name = "gpt-3.5-turbo")]
-    Gpt_3_5_Turbo,
-    #[clap(name = "gpt-3.5-turbo-0301")]
-    Gpt_3_5_Turbo_0301,
-}
-
-impl Model {
-    fn as_str(&self) -> &'static str {
-        match self {
-            Self::Gpt_4 => "gpt-4",
-            Self::Gpt_4_0314 => "gpt-4-0314",
-            Self::Gpt_4_32k => "gpt-4-32k",
-            Self::Gpt_4_32k_0314 => "gpt-4-32k-0314",
-            Self::Gpt_3_5_Turbo => "gpt-3.5-turbo",
-            Self::Gpt_3_5_Turbo_0301 => "gpt-3.5-turbo-0301",
-        }
-    }
 }
 
 #[tokio::main]
