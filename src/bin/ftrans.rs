@@ -16,7 +16,7 @@ struct Args {
     /// OenAI API Key
     #[clap(long = "key", short = 'k')]
     key: Option<String>,
-    /// default is "gpt-4"
+    /// OpenAI Model
     #[clap(long = "model", short = 'm', value_enum, default_value = "gpt-4")]
     model: Option<Model>,
     /// Prompt
