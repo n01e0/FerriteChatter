@@ -1,6 +1,4 @@
-mod core;
-
-use crate::core::Model;
+use FerriteChatter::core::Model;
 use anyhow::{Context, Result};
 use clap::Parser;
 use openai::{
@@ -18,7 +16,7 @@ struct Args {
     /// OenAI API Key
     #[clap(long = "key", short = 'k')]
     key: Option<String>,
-    /// default is "gpt-4-32k"
+    /// default is "gpt-4"
     #[clap(long = "model", short = 'm', value_enum, default_value = "gpt-4")]
     model: Option<Model>,
     /// Prompt

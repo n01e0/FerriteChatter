@@ -9,15 +9,15 @@ readme = "README.md"
 
 [[bin]]
 name = "fchat"
-path = "src/main.rs"
+path = "src/bin/fchat.rs"
 
 [[bin]]
 name = "fask"
-path = "src/ask.rs"
+path = "src/bin/fask.rs"
 
 [[bin]]
 name = "ftrans"
-path = "src/translate.rs"
+path = "src/bin/ftrans.rs"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

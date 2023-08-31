@@ -1,5 +1,3 @@
-mod core;
-
 use anyhow::{Context, Result};
 use clap::Parser;
 use inquire::{Text, Editor};
@@ -8,7 +6,7 @@ use openai::{
     set_key,
 };
 use std::env;
-use crate::core::Model;
+use FerriteChatter::core::Model;
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -19,7 +17,7 @@ struct Args {
     /// OenAI API Key
     #[clap(long = "key", short = 'k')]
     key: Option<String>,
-    /// default is "gpt-4-32k"
+    /// default is "gpt-4"
     #[clap(long = "model", short = 'm', value_enum, default_value = "gpt-4")]
     model: Option<Model>,
 }

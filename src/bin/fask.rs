@@ -1,6 +1,4 @@
-mod core;
-
-use crate::core::Model;
+use FerriteChatter::core::Model;
 use anyhow::{Context, Result};
 use clap::Parser;
 use openai::{
