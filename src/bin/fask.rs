@@ -33,16 +33,16 @@ async fn main() -> Result<()> {
     );
     set_key(key);
 
-    let mut messages = vec![
-        ChatCompletionMessage {
-            role: ChatCompletionMessageRole::System,
-            content: Some(args
-                .general
-                .unwrap_or(String::from("You are an engineer's assistant."))),
-            name: None,
-            function_call: None,
-        },
-    ];
+    let mut messages = Vec::new();
+    if let Some(general) = args.general {
+        messages.push(
+            ChatCompletionMessage {
+                role: ChatCompletionMessageRole::System,
+                content: Some(general),
+                name: None,
+                function_call: None,
+            })
+    }
 
     let model = args.model.map(|m| m.as_str()).with_context(|| "something wrong")?;
 
