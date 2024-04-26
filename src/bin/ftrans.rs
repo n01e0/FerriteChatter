@@ -1,4 +1,3 @@
-use FerriteChatter::core::Model;
 use anyhow::{Context, Result};
 use clap::Parser;
 use openai::{
@@ -6,6 +5,7 @@ use openai::{
     set_key,
 };
 use std::env;
+use FerriteChatter::core::Model;
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -17,7 +17,12 @@ struct Args {
     #[clap(long = "key", short = 'k')]
     key: Option<String>,
     /// OpenAI Model
-    #[clap(long = "model", short = 'm', value_enum, default_value = "gpt-4-1106-preview")]
+    #[clap(
+        long = "model",
+        short = 'm',
+        value_enum,
+        default_value = "gpt-4-1106-preview"
+    )]
     model: Option<Model>,
     /// Prompt
     prompt: String,
@@ -33,18 +38,19 @@ async fn main() -> Result<()> {
     );
     set_key(key);
 
-    let mut messages = vec![
-        ChatCompletionMessage {
-            role: ChatCompletionMessageRole::System,
-            content: Some(args
-                .general
-                .unwrap_or(String::from("次の文章を、日本語の場合は英語に、日本語以外の場合は日本語に翻訳してください。"))),
-            name: None,
-            function_call: None,
-        },
-    ];
+    let mut messages = vec![ChatCompletionMessage {
+        role: ChatCompletionMessageRole::System,
+        content: Some(args.general.unwrap_or(String::from(
+            "次の文章を、日本語の場合は英語に、日本語以外の場合は日本語に翻訳してください。",
+        ))),
+        name: None,
+        function_call: None,
+    }];
 
-    let model = args.model.map(|m| m.as_str()).with_context(|| "something wrong")?;
+    let model = args
+        .model
+        .map(|m| m.as_str())
+        .with_context(|| "something wrong")?;
 
     messages.push(ChatCompletionMessage {
         role: ChatCompletionMessageRole::User,
@@ -61,6 +67,13 @@ async fn main() -> Result<()> {
         .first()
         .with_context(|| "Can't read ChatGPT output")?
         .message;
-    println!("{}", answer.content.clone().with_context(|| "Can't get content")?.trim());
+    println!(
+        "{}",
+        answer
+            .content
+            .clone()
+            .with_context(|| "Can't get content")?
+            .trim()
+    );
     Ok(())
 }
