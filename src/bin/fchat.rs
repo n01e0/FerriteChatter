@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use clap::Parser;
-use inquire::{Text, Editor};
+use inquire::{Editor, Text};
 use openai::{
     chat::{ChatCompletion, ChatCompletionMessage, ChatCompletionMessageRole},
     set_key,
@@ -18,7 +18,12 @@ struct Args {
     #[clap(long = "key", short = 'k')]
     key: Option<String>,
     /// OpenAI Model
-    #[clap(long = "model", short = 'm', value_enum, default_value = "gpt-4-1106-preview")]
+    #[clap(
+        long = "model",
+        short = 'm',
+        value_enum,
+        default_value = "gpt-4-1106-preview"
+    )]
     model: Option<Model>,
 }
 
@@ -82,13 +87,19 @@ async fn main() -> Result<()> {
             "v" => {
                 let input = Editor::new("Prompt:").prompt()?;
                 let answer = ask(&mut messages, input, model).await?;
-                let content = answer.content.as_ref().with_context(|| "Can't get content")?;
+                let content = answer
+                    .content
+                    .as_ref()
+                    .with_context(|| "Can't get content")?;
                 println!("{:?}: {}", &answer.role, content.trim());
                 messages.push(answer);
             }
             _ => {
                 let answer = ask(&mut messages, input, model).await?;
-                let content = answer.content.as_ref().with_context(|| "Can't get content")?;
+                let content = answer
+                    .content
+                    .as_ref()
+                    .with_context(|| "Can't get content")?;
                 println!("{:?}: {}", &answer.role, content.trim());
                 messages.push(answer);
             }
@@ -96,7 +107,11 @@ async fn main() -> Result<()> {
     }
 }
 
-async fn ask(messages: &mut Vec<ChatCompletionMessage>, input: String, model: &str) -> Result<ChatCompletionMessage> {
+async fn ask(
+    messages: &mut Vec<ChatCompletionMessage>,
+    input: String,
+    model: &str,
+) -> Result<ChatCompletionMessage> {
     messages.push(ChatCompletionMessage {
         role: ChatCompletionMessageRole::User,
         content: Some(input),
