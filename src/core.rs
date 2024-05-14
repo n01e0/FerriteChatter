@@ -5,6 +5,8 @@ use clap::ValueEnum;
 pub enum Model {
     #[clap(name = "gpt-4")]
     Gpt_4,
+    #[clap(name = "gpt-4o")]
+    Gpt_4o,
     #[clap(name = "gpt-4-0314")]
     Gpt_4_0314,
     #[clap(name = "gpt-4-0613")]
@@ -33,6 +35,7 @@ impl Model {
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Gpt_4 => "gpt-4",
+            Self::Gpt_4o => "gpt-4o",
             Self::Gpt_4_0314 => "gpt-4-0314",
             Self::Gpt_4_0613 => "gpt-4-0613",
             Self::Gpt_4_32k => "gpt-4-32k",

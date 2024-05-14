@@ -18,12 +18,7 @@ struct Args {
     #[clap(long = "key", short = 'k')]
     key: Option<String>,
     /// OpenAI Model
-    #[clap(
-        long = "model",
-        short = 'm',
-        value_enum,
-        default_value = "gpt-4-1106-preview"
-    )]
+    #[clap(long = "model", short = 'm', value_enum, default_value = "gpt-4o")]
     model: Option<Model>,
 }
 
