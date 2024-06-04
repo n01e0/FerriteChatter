@@ -3,7 +3,7 @@ use clap::Parser;
 use inquire::{Editor, Text, Confirm};
 use std::fs::File;
 use std::io::Write;
-use openai::{
+use openai_fork::{
     chat::{ChatCompletion, ChatCompletionMessage, ChatCompletionMessageRole},
     set_key,
 };
