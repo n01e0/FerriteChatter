@@ -9,7 +9,7 @@ dependencies = [
  "anyhow",
  "clap",
  "inquire",
- "openai",
+ "openai-fork",
  "tokio",
 ]
 
@@ -799,9 +799,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3fdb12b2476b595f9358c5161aa467c2438859caa136dec86c26fdd2efe17b92"
 
 [[package]]
-name = "openai"
-version = "1.0.0-alpha.14"
-source = "git+https://github.com/n01e0/openai?rev=31d25a9026ae5f7b63527c3ba6c68ed47d348d9f#31d25a9026ae5f7b63527c3ba6c68ed47d348d9f"
+name = "openai-fork"
+version = "1.0.0-alpha.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "964690b054ccef48058647a5c9926a5e2788ea5f43421d8729c0af3c2cdb3f2a"
 dependencies = [
  "anyhow",
  "bytes",

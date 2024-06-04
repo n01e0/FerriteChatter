@@ -25,5 +25,5 @@ path = "src/bin/ftrans.rs"
 anyhow = "1.0.86"
 clap = { version="4.2.1", features=["derive"] }
 inquire = { version="0.7.5", features=["editor"] }
-openai = { git="https://github.com/n01e0/openai", rev="31d25a9026ae5f7b63527c3ba6c68ed47d348d9f" }
+openai-fork = "1.0.0-alpha.15"
 tokio = { version="1.38.0", features=["full"] }
