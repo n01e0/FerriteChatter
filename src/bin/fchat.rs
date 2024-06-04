@@ -1,13 +1,13 @@
 use anyhow::{Context, Result};
 use clap::Parser;
-use inquire::{Editor, Text, Confirm};
-use std::fs::File;
-use std::io::Write;
+use inquire::{Confirm, Editor, Text};
 use openai_fork::{
     chat::{ChatCompletion, ChatCompletionMessage, ChatCompletionMessageRole},
     set_key,
 };
 use std::env;
+use std::fs::File;
+use std::io::Write;
 use FerriteChatter::core::Model;
 
 const SEED_PROMPT: &'static str = r#"
@@ -41,16 +41,12 @@ async fn main() -> Result<()> {
     );
     set_key(key);
 
-    let mut messages = vec![
-        ChatCompletionMessage {
-            role: ChatCompletionMessageRole::System,
-            content: Some(args
-                .general
-                .unwrap_or(String::from(SEED_PROMPT))),
-            name: None,
-            function_call: None,
-        },
-    ];
+    let mut messages = vec![ChatCompletionMessage {
+        role: ChatCompletionMessageRole::System,
+        content: Some(args.general.unwrap_or(String::from(SEED_PROMPT))),
+        name: None,
+        function_call: None,
+    }];
 
     let initial_state = messages.clone();
 
@@ -77,8 +73,7 @@ async fn main() -> Result<()> {
                 messages.push(answer);
             }
             "save" => {
-                let path = Text::new("path:")
-                    .prompt()?;
+                let path = Text::new("path:").prompt()?;
                 let context = messages
                     .clone()
                     .into_iter()
@@ -101,7 +96,6 @@ async fn main() -> Result<()> {
                     println!("Bye!");
                     return Ok(());
                 }
-
             }
             "" => {
                 println!("Empty message received. :(");
