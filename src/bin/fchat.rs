@@ -1,12 +1,21 @@
 use anyhow::{Context, Result};
 use clap::Parser;
-use inquire::{Editor, Text};
+use inquire::{Editor, Text, Confirm};
+use std::fs::File;
+use std::io::Write;
 use openai::{
     chat::{ChatCompletion, ChatCompletionMessage, ChatCompletionMessageRole},
     set_key,
 };
 use std::env;
 use FerriteChatter::core::Model;
+
+const SEED_PROMPT: &'static str = r#"
+You are an engineer's assistant.
+The user can reset the current state of the chat by inputting 'reset'.
+The user can activate the editor by entering 'v', allowing them to input multiple lines of prompts.
+To terminate, the user needs to input "exit".
+"#;
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -37,29 +46,7 @@ async fn main() -> Result<()> {
             role: ChatCompletionMessageRole::System,
             content: Some(args
                 .general
-                .unwrap_or(String::from("You are an engineer's assistant."))),
-            name: None,
-            function_call: None,
-        },
-        ChatCompletionMessage {
-            role: ChatCompletionMessageRole::System,
-            content: Some(String::from(
-                "The user can reset the current state of the chat by inputting 'reset'.",
-            )),
-            name: None,
-            function_call: None,
-        },
-        ChatCompletionMessage {
-            role: ChatCompletionMessageRole::System,
-            content: Some(String::from(
-                    "The user can activate the editor by entering 'v', allowing them to input multiple lines of prompts."
-                )),
-            name: None,
-            function_call: None,
-        },
-        ChatCompletionMessage {
-            role: ChatCompletionMessageRole::System,
-            content: Some(String::from("To terminate, the user needs to input \"exit\".")),
+                .unwrap_or(String::from(SEED_PROMPT))),
             name: None,
             function_call: None,
         },
@@ -88,6 +75,36 @@ async fn main() -> Result<()> {
                     .with_context(|| "Can't get content")?;
                 println!("{:?}: {}", &answer.role, content.trim());
                 messages.push(answer);
+            }
+            "save" => {
+                let path = Text::new("path:")
+                    .prompt()?;
+                let context = messages
+                    .clone()
+                    .into_iter()
+                    .filter(|m| m.role != ChatCompletionMessageRole::System)
+                    .filter_map(|m| {
+                        if m.role == ChatCompletionMessageRole::Assistant {
+                            m.content.map(|c| format!("Assistant:{}", c))
+                        } else {
+                            m.content
+                        }
+                    })
+                    .collect::<Vec<String>>()
+                    .join("\n");
+                let mut out = File::create(path)?;
+                out.write_all(context.as_bytes())?;
+                let exit = Confirm::new("Context successfully saved!\nexit?[y/n]:")
+                    .with_default(false)
+                    .prompt()?;
+                if exit {
+                    println!("Bye!");
+                    return Ok(());
+                }
+
+            }
+            "" => {
+                println!("Empty message received. :(");
             }
             _ => {
                 let answer = ask(&mut messages, input, model).await?;
