@@ -23,7 +23,7 @@ path = "src/bin/ftrans.rs"
 
 [dependencies]
 anyhow = "1.0.86"
-clap = { version="4.5.8", features=["derive"] }
+clap = { version="4.5.9", features=["derive"] }
 inquire = { version="0.7.5", features=["editor"] }
 openai-fork = "1.0.0-alpha.15"
 tokio = { version="1.38.0", features=["full"] }
