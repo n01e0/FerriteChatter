@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use clap::Parser;
-use openai_fork::{
+use openai::{
     chat::{ChatCompletion, ChatCompletionMessage, ChatCompletionMessageRole},
     set_key,
 };

@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use clap::Parser;
 use inquire::{Confirm, Editor, Text};
-use openai_fork::{
+use openai::{
     chat::{ChatCompletion, ChatCompletionMessage, ChatCompletionMessageRole},
     set_key,
 };
