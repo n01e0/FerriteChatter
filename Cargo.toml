@@ -26,4 +26,4 @@ anyhow = "1.0.86"
 clap = { version="4.5.15", features=["derive"] }
 inquire = { version="0.7.5", features=["editor"] }
 openai = "1.0.0-alpha.16"
-tokio = { version="1.39.2", features=["full"] }
+tokio = { version="1.40.0", features=["full"] }
