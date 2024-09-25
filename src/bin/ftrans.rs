@@ -5,7 +5,7 @@ use openai::{
     set_key,
 };
 use std::env;
-use FerriteChatter::core::Model;
+use FerriteChatter::{core::{Model, DEFAULT_MODEL}, config::Config};
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -26,10 +26,13 @@ struct Args {
 #[tokio::main]
 async fn main() -> Result<()> {
     let args = Args::parse();
+    let config = Config::load()?;
 
     let key = args.key.unwrap_or(
-        env::var("OPENAI_API_KEY")
-            .with_context(|| "You need to set API key to the `OPENAI_API_KEY`")?,
+        config.get_openai_api_key().clone().unwrap_or(
+            env::var("OPENAI_API_KEY")
+                .with_context(|| "You need to set API key to the `OPENAI_API_KEY`")?,
+        )
     );
     set_key(key);
 
@@ -42,10 +45,10 @@ async fn main() -> Result<()> {
         function_call: None,
     }];
 
-    let model = args
-        .model
-        .map(|m| m.as_str())
-        .with_context(|| "something wrong")?;
+    let model = args.model.unwrap_or(
+        config.get_default_model().clone()
+            .unwrap_or(DEFAULT_MODEL)
+    ).as_str();
 
     messages.push(ChatCompletionMessage {
         role: ChatCompletionMessageRole::User,
