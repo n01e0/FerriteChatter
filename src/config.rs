@@ -17,7 +17,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             openai_api_key: None,
-            default_model: Some(crate::core::Model::Gpt_4o)
+            default_model: Some(crate::core::Model::Gpt_4o),
         }
     }
 }

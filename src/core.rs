@@ -1,9 +1,9 @@
+use anyhow::{anyhow, Result};
 use clap::ValueEnum;
-use serde::Deserialize;
 use serde::de::{self, Deserializer, Visitor};
-use std::fmt;
+use serde::Deserialize;
 use std::convert::TryFrom;
-use anyhow::{Result, anyhow};
+use std::fmt;
 
 #[derive(Debug, Eq, PartialEq, ValueEnum, Clone)]
 #[allow(non_camel_case_types)]
@@ -86,11 +86,12 @@ impl Model {
 
 impl<'de> Deserialize<'de> for Model {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where D: Deserializer<'de>,
+    where
+        D: Deserializer<'de>,
     {
         struct ModelVisitor;
 
-        impl <'de> Visitor<'de> for ModelVisitor {
+        impl<'de> Visitor<'de> for ModelVisitor {
             type Value = Model;
 
             fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
@@ -98,12 +99,12 @@ impl<'de> Deserialize<'de> for Model {
             }
 
             fn visit_str<E>(self, value: &str) -> Result<Model, E>
-            where E: de::Error,
+            where
+                E: de::Error,
             {
                 Model::try_from(value).map_err(|e| de::Error::custom(e.to_string()))
             }
         }
         deserializer.deserialize_str(ModelVisitor)
     }
-
 }

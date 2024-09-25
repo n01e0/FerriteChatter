@@ -8,7 +8,10 @@ use openai::{
 use std::env;
 use std::fs::File;
 use std::io::Write;
-use FerriteChatter::{core::{Model, DEFAULT_MODEL}, config::Config};
+use FerriteChatter::{
+    config::Config,
+    core::{Model, DEFAULT_MODEL},
+};
 
 const SEED_PROMPT: &'static str = r#"
 You are an engineer's assistant.
@@ -40,7 +43,7 @@ async fn main() -> Result<()> {
         config.get_openai_api_key().clone().unwrap_or(
             env::var("OPENAI_API_KEY")
                 .with_context(|| "You need to set API key to the `OPENAI_API_KEY`")?,
-        )
+        ),
     );
     set_key(key);
 
@@ -53,10 +56,10 @@ async fn main() -> Result<()> {
 
     let initial_state = messages.clone();
 
-    let model = args.model.unwrap_or(
-        config.get_default_model().clone()
-            .unwrap_or(DEFAULT_MODEL)
-    ).as_str();
+    let model = args
+        .model
+        .unwrap_or(config.get_default_model().clone().unwrap_or(DEFAULT_MODEL))
+        .as_str();
 
     loop {
         let input = Text::new("").prompt()?;
