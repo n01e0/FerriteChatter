@@ -26,4 +26,7 @@ anyhow = "1.0.89"
 clap = { version="4.5.17", features=["derive"] }
 inquire = { version="0.7.5", features=["editor"] }
 openai = "1.0.0-alpha.16"
+serde = { version = "1.0.210", features = ["derive"] }
+serde_yaml = "0.9.34"
+tia = "1.0.3"
 tokio = { version="1.40.0", features=["full"] }
