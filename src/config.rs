@@ -25,7 +25,7 @@ impl Default for Config {
 impl Config {
     pub fn load() -> Result<Self> {
         let path = format!(
-            "{}/.ferriteconf",
+            "{}/.ferriteconf.yaml",
             env::var("XDG_CONFIG_HOME").unwrap_or(format!(
                 "{}/.config",
                 env::var("HOME").with_context(|| "Where is the HOME?")?

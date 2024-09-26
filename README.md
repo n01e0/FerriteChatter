@@ -5,7 +5,9 @@ ChatGPTとターミナル上で会話できるやつ。
 名前はChatGPTに考えて貰った。
 
 ## Usage
-API keyは`OPENAI_API_KEY`に設定。
+API keyは`OPENAI_API_KEY`に設定
+
+もしくは`$XDG_CONFIG_HOME/.ferriteconf.yaml`に記載。
 
 あとは実行するだけ
 
@@ -37,3 +39,13 @@ Options:
 ```bash
 cargo install FerriteChatter
 ```
+
+## config file (Optional)
+`$HOME/.ferriteconf.yaml` or `$XDG_CONFIG_HOME/.ferriteconf.yaml`
+
+
+```yaml
+openai_api_key: "XXXX"
+default_model: "gpt-4o"
+```
+
