@@ -7,7 +7,7 @@ use openai::{
 };
 use std::env;
 use std::fs::File;
-use std::io::Write;
+use std::io::{self, IsTerminal, Read, Write};
 use FerriteChatter::{
     config::Config,
     core::{Model, DEFAULT_MODEL},
@@ -38,6 +38,7 @@ struct Args {
 async fn main() -> Result<()> {
     let args = Args::parse();
     let config = Config::load()?;
+    let mut stdin = io::stdin();
 
     let key = args.key.unwrap_or(
         config.get_openai_api_key().clone().unwrap_or(
@@ -46,6 +47,10 @@ async fn main() -> Result<()> {
         ),
     );
     set_key(key);
+    let model = args
+        .model
+        .unwrap_or(config.get_default_model().clone().unwrap_or(DEFAULT_MODEL))
+        .as_str();
 
     let mut messages = vec![ChatCompletionMessage {
         role: ChatCompletionMessageRole::System,
@@ -54,12 +59,18 @@ async fn main() -> Result<()> {
         function_call: None,
     }];
 
-    let initial_state = messages.clone();
+    if !stdin.is_terminal() {
+        let mut input = String::new();
+        let _ = stdin.read_to_string(&mut input);
+        let answer = ask(&mut messages, input, model).await?;
+        let content = answer
+            .content
+            .as_ref()
+            .with_context(|| "Can't get content")?;
+        println!("{:?}: {}", &answer.role, content.trim());
+    }
 
-    let model = args
-        .model
-        .unwrap_or(config.get_default_model().clone().unwrap_or(DEFAULT_MODEL))
-        .as_str();
+    let initial_state = messages.clone();
 
     loop {
         let input = Text::new("").prompt()?;
