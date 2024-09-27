@@ -38,6 +38,9 @@ Options:
 ```
 
 ## installation
+ビルド時にAPIを叩いて使用可能なモデルを取得しています。インストールする前に`OPENAI_API_KEY`にAPIキーを登録してください。
+
+また、その仕様上モデルの更新には再インストールが必要です
 
 ```bash
 cargo install FerriteChatter
