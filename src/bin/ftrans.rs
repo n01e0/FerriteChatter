@@ -55,16 +55,13 @@ async fn main() -> Result<()> {
         .as_str();
 
     let mut stdin = io::stdin();
-    let prompt = args.prompt.unwrap_or(
-        if !stdin.is_terminal() {
-            let mut s = String::new();
-            let _ = stdin.read_to_string(&mut s);
-            Some(s)
-        } else {
-            None
-        }
-        .with_context(|| "Please provide input via a pipe or pass the prompt as an argument.")?,
-    );
+    let prompt = if !stdin.is_terminal() {
+        let mut s = String::new();
+        let _ = stdin.read_to_string(&mut s);
+        Some(format!("{}\n{}", s, args.prompt.unwrap_or(String::default())))
+    } else {
+        args.prompt
+    }.with_context(|| "Please provide input via a pipe or pass the prompt as an argument.")?;
 
     messages.push(ChatCompletionMessage {
         role: ChatCompletionMessageRole::User,
