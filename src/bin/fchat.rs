@@ -7,7 +7,7 @@ use openai::{
 };
 use std::env;
 use std::fs::File;
-use std::io::{self, IsTerminal, Read, Write};
+use std::io::{Read, Write};
 use FerriteChatter::{
     config::Config,
     core::{Model, DEFAULT_MODEL},
@@ -32,13 +32,15 @@ struct Args {
     /// OpenAI Model
     #[clap(long = "model", short = 'm', value_enum)]
     model: Option<Model>,
+    /// Initial context file
+    #[clap(long = "file", short = 'f')]
+    file: Option<String>,
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
     let args = Args::parse();
     let config = Config::load()?;
-    let mut stdin = io::stdin();
 
     let key = args.key.unwrap_or(
         config.get_openai_api_key().clone().unwrap_or(
@@ -59,15 +61,15 @@ async fn main() -> Result<()> {
         function_call: None,
     }];
 
-    if !stdin.is_terminal() {
+    if let Some(path) = args.file {
         let mut input = String::new();
-        let _ = stdin.read_to_string(&mut input);
-        let answer = ask(&mut messages, input, model).await?;
-        let content = answer
-            .content
-            .as_ref()
-            .with_context(|| "Can't get content")?;
-        println!("{:?}: {}", &answer.role, content.trim());
+        let _ = File::open(path)?.read_to_string(&mut input);
+        messages.push(ChatCompletionMessage {
+            role: ChatCompletionMessageRole::User,
+            content: Some(input),
+            name: None,
+            function_call: None,
+        })
     }
 
     let initial_state = messages.clone();
