@@ -15,6 +15,7 @@ concurrency:
 env:
   CARGO_TARGET_DIR: ${{ github.workspace }}/target
   CARGO_TERM_COLOR: always
+  OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
 jobs:
   check:
@@ -36,4 +37,4 @@ jobs:
       - name: Run cargo fmt
         run: cargo fmt --check
       - name: Run cargo check
-        run: OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }} cargo check --all-targets
+        run: cargo check --all-targets
