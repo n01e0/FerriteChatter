@@ -30,3 +30,4 @@ serde = { version = "1.0.210", features = ["derive"] }
 serde_yaml = "0.9.34"
 tia = "1.0.3"
 tokio = { version="1.40.0", features=["full"] }
+model_gen = { path = "./model_gen" }
