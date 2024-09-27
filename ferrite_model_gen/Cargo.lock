@@ -232,6 +232,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e8c02a5121d4ea3eb16a80748c74f5549a5665e4c21333c6098f283870fbdea6"
 
 [[package]]
+name = "ferrite_model_gen"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "quote",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "syn",
+ "tokio",
+]
+
+[[package]]
 name = "fnv"
 version = "1.0.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -583,20 +597,6 @@ dependencies = [
  "libc",
  "wasi",
  "windows-sys 0.52.0",
-]
-
-[[package]]
-name = "model_gen"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "quote",
- "reqwest",
- "serde",
- "serde_json",
- "syn",
- "tokio",
 ]
 
 [[package]]

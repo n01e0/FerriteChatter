@@ -1,5 +1,5 @@
 [package]
-name = "model_gen"
+name = "ferrite_model_gen"
 version = "0.1.0"
 edition = "2021"
 
