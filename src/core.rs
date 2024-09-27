@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Result};
 use clap::ValueEnum;
-use model_gen::generate_models;
+use ferrite_model_gen::generate_models;
 use serde::de::{self, Deserializer, Visitor};
 use serde::Deserialize;
 use std::convert::TryFrom;

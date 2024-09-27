@@ -8,8 +8,8 @@ version = "4.0.0"
 dependencies = [
  "anyhow",
  "clap",
+ "ferrite_model_gen",
  "inquire",
- "model_gen",
  "openai",
  "serde",
  "serde_yaml",
@@ -365,6 +365,22 @@ name = "fastrand"
 version = "2.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e8c02a5121d4ea3eb16a80748c74f5549a5665e4c21333c6098f283870fbdea6"
+
+[[package]]
+name = "ferrite_model_gen"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "10846c31434fa8293634a08d9433f603ddfd80b9caf4ce27a343ecedbd79e81d"
+dependencies = [
+ "anyhow",
+ "clap",
+ "quote",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "syn 2.0.77",
+ "tokio",
+]
 
 [[package]]
 name = "fnv"
@@ -807,20 +823,6 @@ dependencies = [
  "libc",
  "wasi",
  "windows-sys 0.52.0",
-]
-
-[[package]]
-name = "model_gen"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "quote",
- "reqwest",
- "serde",
- "serde_json",
- "syn 2.0.77",
- "tokio",
 ]
 
 [[package]]
