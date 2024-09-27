@@ -36,6 +36,7 @@ pub fn generate_models(_input: TokenStream) -> TokenStream {
         .expect("'data' is not an array")
         .iter()
         .map(|model| serde_json::from_value(model.clone()).expect("Failed to deserialize model"))
+        .filter(|m: &Model| m.id.contains("gpt") || m.id.contains("o1"))
         .collect();
 
     // 各モデルに対応するenumとimplを生成
