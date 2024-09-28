@@ -1,6 +1,6 @@
 [package]
 name = "FerriteChatter"
-version = "4.1.0"
+version = "4.2.0"
 authors = ["n01e0 <reoshiseki@gmail.com>"]
 edition = "2021"
 description = "ChatGPT CLI"

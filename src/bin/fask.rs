@@ -5,6 +5,7 @@ use openai::{
     set_key,
 };
 use std::env;
+use std::fs::File;
 use std::io::{self, IsTerminal, Read};
 use FerriteChatter::{
     config::Config,
@@ -23,6 +24,8 @@ struct Args {
     /// OpenAI Model
     #[clap(long = "model", short = 'm', value_enum, default_value = "gpt-4o")]
     model: Option<Model>,
+    #[clap(long = "file", short = 'f')]
+    file: Option<String>,
     /// Prompt
     prompt: Option<String>,
 }
@@ -35,10 +38,15 @@ async fn main() -> Result<()> {
     let prompt = if !stdin.is_terminal() {
         let mut s = String::new();
         let _ = stdin.read_to_string(&mut s);
-        Some(format!("{}\n{}", s, args.prompt.unwrap_or(String::default())))
+        Some(format!(
+            "{}\n{}",
+            s,
+            args.prompt.unwrap_or(String::default())
+        ))
     } else {
         args.prompt
-    }.with_context(|| "Please provide input via a pipe or pass the prompt as an argument.")?;
+    }
+    .with_context(|| "Please provide input via a pipe or pass the prompt as an argument.")?;
 
     let key = args.key.unwrap_or(
         config.get_openai_api_key().clone().unwrap_or(
@@ -49,6 +57,16 @@ async fn main() -> Result<()> {
     set_key(key);
 
     let mut messages = Vec::new();
+    if let Some(path) = args.file {
+        let mut input = String::new();
+        let _ = File::open(path)?.read_to_string(&mut input);
+        messages.push(ChatCompletionMessage {
+            role: ChatCompletionMessageRole::User,
+            content: Some(input),
+            name: None,
+            function_call: None,
+        })
+    }
     if let Some(general) = args.general {
         messages.push(ChatCompletionMessage {
             role: ChatCompletionMessageRole::System,
