@@ -51,10 +51,122 @@ cargo install FerriteChatter
 function! ChatAIWithContext()
     let l:temp_file = tempname()
     execute 'write ' . l:temp_file
-    execute 'rightbelow vsplit | terminal fchat -f ' . l:temp_file
+    execute 'rightbelow vsplit | terminal fchat -f ' . l:temp_file 
+endfunction
+
+function! ChatAIWithFile()
+    let l:file_path = resolve(expand('%:p'))
+    execute 'rightbelow vsplit | terminal fchat -f ' . l:file_path
+endfunction
+
+function! AskAIWithContext()
+    let l:temp_file = tempname()
+    execute 'write ' . l:temp_file
+
+    let buf = nvim_create_buf(v:false, v:true)
+    call nvim_buf_set_lines(buf, 0, -1, v:true, ['> '])
+    let width = 40
+    let height = 1
+
+    let opts = {
+                \ 'relative': 'editor',
+                \ 'width': width,
+                \ 'height': height,
+                \ 'col': (&columns - width) / 2,
+                \ 'row': (&lines - height) / 2,
+                \ 'anchor': 'NW',
+                \ 'style': 'minimal',
+                \ 'border': 'single'
+                \ }
+
+    let win = nvim_open_win(buf, v:true, opts)
+    let l:user_input = input('> ')
+    call nvim_win_close(win, v:true)
+
+    if l:user_input == ''
+        echom 'No input provided'
+        return
+    endif
+
+    let l:command = 'fask -f ' . l:temp_file . ' ' . shellescape(l:user_input)
+    let l:result = system(l:command)
+
+    let result_buf = nvim_create_buf(v:false, v:true)
+    call nvim_buf_set_lines(result_buf, 0, -1, v:true, split(l:result, "\n"))
+
+    let result_height = min([20, len(split(l:result, "\n"))])
+    let result_width = min([80, max(map(split(l:result, "\n"), 'len(v:val)'))])
+
+    let result_opts = {
+                \ 'relative': 'editor',
+                \ 'width': result_width,
+                \ 'height': result_height,
+                \ 'col': (&columns - result_width) / 2,
+                \ 'row': (&lines - result_height) / 2,
+                \ 'anchor': 'NW',
+                \ 'style': 'minimal',
+                \ 'border': 'single'
+                \ }
+
+    call nvim_open_win(result_buf, v:true, result_opts)
+endfunction
+
+function! AskAIWithFile()
+    let l:file_path = resolve(expand('%:p'))
+
+    let buf = nvim_create_buf(v:false, v:true)
+    call nvim_buf_set_lines(buf, 0, -1, v:true, ['> '])
+    let width = 40
+    let height = 1
+
+    let opts = {
+                \ 'relative': 'editor',
+                \ 'width': width,
+                \ 'height': height,
+                \ 'col': (&columns - width) / 2,
+                \ 'row': (&lines - height) / 2,
+                \ 'anchor': 'NW',
+                \ 'style': 'minimal',
+                \ 'border': 'single'
+                \ }
+
+    let win = nvim_open_win(buf, v:true, opts)
+    let l:user_input = input('> ')
+    call nvim_win_close(win, v:true)
+
+    if l:user_input == ''
+        echom 'No input provided'
+        return
+    endif
+
+    let l:command = 'fask ' . shellescape(l:user_input) . ' -f ' . l:file_path
+    let l:result = system(l:command)
+
+    let result_buf = nvim_create_buf(v:false, v:true)
+    call nvim_buf_set_lines(result_buf, 0, -1, v:true, split(l:result, "\n"))
+
+    let result_height = min([20, len(split(l:result, "\n"))])
+    let result_width = min([80, max(map(split(l:result, "\n"), 'len(v:val)'))])
+
+    let result_opts = {
+                \ 'relative': 'editor',
+                \ 'width': result_width,
+                \ 'height': result_height,
+                \ 'col': (&columns - result_width) / 2,
+                \ 'row': (&lines - result_height) / 2,
+                \ 'anchor': 'NW',
+                \ 'style': 'minimal',
+                \ 'border': 'single'
+                \ }
+
+    call nvim_open_win(result_buf, v:true, result_opts)
 endfunction
 
 vnoremap <silent> <C-f> :<C-u>call ChatAIWithContext()<CR>
+vnoremap <silent> <C-a> :<C-u>call AskAIWithContext()<CR>
+nnoremap <silent> <C-f> :<C-u>call ChatAIWithFile()<CR>
+nnoremap <silent> <C-a> :<C-u>call AskAIWithFile()<CR>
+tnoremap <Esc> <C-\><C-n>
 ```
 
 ## config file (Optional)
