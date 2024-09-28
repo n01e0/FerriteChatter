@@ -50,8 +50,9 @@ cargo install FerriteChatter
 ```vim
 function! ChatAIWithContext()
     let l:temp_file = tempname()
-    execute 'write ' . l:temp_file
+    execute "'<,'>write! " . l:temp_file
     execute 'rightbelow vsplit | terminal fchat -f ' . l:temp_file 
+    call delete(l:temp_file)
 endfunction
 
 function! ChatAIWithFile()
@@ -61,7 +62,7 @@ endfunction
 
 function! AskAIWithContext()
     let l:temp_file = tempname()
-    execute 'write ' . l:temp_file
+    execute "'<,'>write! " . l:temp_file
 
     let buf = nvim_create_buf(v:false, v:true)
     call nvim_buf_set_lines(buf, 0, -1, v:true, ['> '])
@@ -109,6 +110,7 @@ function! AskAIWithContext()
                 \ }
 
     call nvim_open_win(result_buf, v:true, result_opts)
+    call delete(l:temp_file)
 endfunction
 
 function! AskAIWithFile()
@@ -162,10 +164,47 @@ function! AskAIWithFile()
     call nvim_open_win(result_buf, v:true, result_opts)
 endfunction
 
+function! GenAI()
+    let l:user_input = input('> ')
+    let l:command = 'fask -g "provide only the code without markdown format in the output." ' . shellescape(l:user_input)
+    let l:output = system(l:command)
+    set paste
+    execute 'normal i' . l:output
+    set nopaste
+endfunction
+
+function! GenAIWithContext()
+    let l:temp_file = tempname()
+    execute "'<,'>write! " . l:temp_file
+    let l:user_input = input('> ')
+    let l:command = 'fask -g "Please provide only the code in the output." -f ' . l:temp_file . ' ' . shellescape(l:user_input)
+    let l:output = system(l:command)
+    execute 'set paste'
+    execute 'normal i' . l:output
+    execute 'set nopaste'
+endfunction
+
+function! ReplaceAIWithContext()
+    let l:temp_file = tempname()
+    execute "'<,'>write! " . l:temp_file
+    let l:user_input = input('> ')
+    let l:command = 'fask -g "provide only the code without markdown format in the output." -f ' . l:temp_file . ' ' . shellescape(l:user_input)
+    let l:output = system(l:command)
+    execute "'<,'>delete"
+    set paste
+    execute "normal! a" . l:output
+    set nopaste
+    call delete(l:temp_file)
+endfunction
+
 vnoremap <silent> <C-f> :<C-u>call ChatAIWithContext()<CR>
 vnoremap <silent> <C-a> :<C-u>call AskAIWithContext()<CR>
 nnoremap <silent> <C-f> :<C-u>call ChatAIWithFile()<CR>
 nnoremap <silent> <C-a> :<C-u>call AskAIWithFile()<CR>
+nnoremap <silent> <C-g> :<C-u>call GenAI()<CR>
+vnoremap <silent> <C-g> :<C-u>call GenAIWithContext()<CR>
+vnoremap <silent> <C-r> :<C-u>call ReplaceAIWithContext()<CR>
+
 tnoremap <Esc> <C-\><C-n>
 ```
 

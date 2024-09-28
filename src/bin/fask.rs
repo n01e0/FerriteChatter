@@ -57,20 +57,20 @@ async fn main() -> Result<()> {
     set_key(key);
 
     let mut messages = Vec::new();
+    if let Some(general) = args.general {
+        messages.push(ChatCompletionMessage {
+            role: ChatCompletionMessageRole::System,
+            content: Some(general),
+            name: None,
+            function_call: None,
+        })
+    }
     if let Some(path) = args.file {
         let mut input = String::new();
         let _ = File::open(path)?.read_to_string(&mut input);
         messages.push(ChatCompletionMessage {
             role: ChatCompletionMessageRole::User,
             content: Some(input),
-            name: None,
-            function_call: None,
-        })
-    }
-    if let Some(general) = args.general {
-        messages.push(ChatCompletionMessage {
-            role: ChatCompletionMessageRole::System,
-            content: Some(general),
             name: None,
             function_call: None,
         })
