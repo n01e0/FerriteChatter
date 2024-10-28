@@ -22,7 +22,7 @@ path = "src/bin/ftrans.rs"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-anyhow = "1.0.89"
+anyhow = "1.0.91"
 clap = { version="4.5.20", features=["derive"] }
 inquire = { version="0.7.5", features=["editor"] }
 openai = "1.0.0-alpha.16"
