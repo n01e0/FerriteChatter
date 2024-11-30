@@ -54,7 +54,7 @@ async fn main() -> Result<()> {
         .unwrap_or(config.get_default_model().clone().unwrap_or(DEFAULT_MODEL))
         .as_str();
 
-    let role = if model.starts_with("o1") {
+    let role = if !model.starts_with("o1") {
         ChatCompletionMessageRole::System
     } else {
         ChatCompletionMessageRole::User
