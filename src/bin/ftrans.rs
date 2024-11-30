@@ -40,19 +40,25 @@ async fn main() -> Result<()> {
     );
     set_key(key);
 
+    let model = args
+        .model
+        .unwrap_or(config.get_default_model().clone().unwrap_or(DEFAULT_MODEL))
+        .as_str();
+
+    let role = if model.starts_with("o1") {
+        ChatCompletionMessageRole::System
+    } else {
+        ChatCompletionMessageRole::User
+    };
+
     let mut messages = vec![ChatCompletionMessage {
-        role: ChatCompletionMessageRole::System,
+        role: role,
         content: Some(args.general.unwrap_or(String::from(
             "次の文章を、日本語の場合は英語に、日本語以外の場合は日本語に翻訳してください。",
         ))),
         name: None,
         function_call: None,
     }];
-
-    let model = args
-        .model
-        .unwrap_or(config.get_default_model().clone().unwrap_or(DEFAULT_MODEL))
-        .as_str();
 
     let mut stdin = io::stdin();
     let prompt = if !stdin.is_terminal() {

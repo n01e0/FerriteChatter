@@ -54,8 +54,14 @@ async fn main() -> Result<()> {
         .unwrap_or(config.get_default_model().clone().unwrap_or(DEFAULT_MODEL))
         .as_str();
 
+    let role = if model.starts_with("o1") {
+        ChatCompletionMessageRole::System
+    } else {
+        ChatCompletionMessageRole::User
+    };
+
     let mut messages = vec![ChatCompletionMessage {
-        role: ChatCompletionMessageRole::System,
+        role: role,
         content: Some(args.general.unwrap_or(String::from(SEED_PROMPT))),
         name: None,
         function_call: None,

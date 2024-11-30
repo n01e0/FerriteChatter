@@ -56,10 +56,21 @@ async fn main() -> Result<()> {
     );
     set_key(key);
 
+    let model = args
+        .model
+        .unwrap_or(config.get_default_model().clone().unwrap_or(DEFAULT_MODEL))
+        .as_str();
+
+    let role = if !model.starts_with("o1") {
+        ChatCompletionMessageRole::System
+    } else {
+        ChatCompletionMessageRole::User
+    };
+
     let mut messages = Vec::new();
     if let Some(general) = args.general {
         messages.push(ChatCompletionMessage {
-            role: ChatCompletionMessageRole::System,
+            role: role,
             content: Some(general),
             name: None,
             function_call: None,
@@ -75,11 +86,6 @@ async fn main() -> Result<()> {
             function_call: None,
         })
     }
-
-    let model = args
-        .model
-        .unwrap_or(config.get_default_model().clone().unwrap_or(DEFAULT_MODEL))
-        .as_str();
 
     messages.push(ChatCompletionMessage {
         role: ChatCompletionMessageRole::User,
