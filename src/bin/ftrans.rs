@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use clap::Parser;
 use openai::{
     chat::{ChatCompletion, ChatCompletionMessage, ChatCompletionMessageRole},
-    set_key,
+    Credentials,
 };
 use std::env;
 use std::io::{self, IsTerminal, Read};
@@ -17,9 +17,12 @@ struct Args {
     /// Open Prompt(General Prompt)
     #[clap(long = "general", short = 'g')]
     general: Option<String>,
-    /// OenAI API Key
+    /// OpenAI API Key
     #[clap(long = "key", short = 'k')]
     key: Option<String>,
+    /// OpenAI API Base URL
+    #[clap(long = "base-url", short = 'b')]
+    base_url: Option<String>,
     /// OpenAI Model
     #[clap(long = "model", short = 'm', value_enum, default_value = "gpt-4o")]
     model: Option<Model>,
@@ -38,7 +41,13 @@ async fn main() -> Result<()> {
                 .with_context(|| "You need to set API key to the `OPENAI_API_KEY`")?,
         ),
     );
-    set_key(key);
+    let base_url = args.base_url.unwrap_or(
+        config.get_openai_base_url().clone().unwrap_or(
+            env::var("OPENAI_BASE_URL")
+                .unwrap_or_else(|_| "https://api.openai.com/v1".to_string()),
+        ),
+    );
+    let credentials = Credentials::new(key, base_url);
 
     let model = args
         .model
@@ -58,6 +67,8 @@ async fn main() -> Result<()> {
         ))),
         name: None,
         function_call: None,
+        tool_call_id: None,
+        tool_calls: Vec::new(),
     }];
 
     let mut stdin = io::stdin();
@@ -79,9 +90,12 @@ async fn main() -> Result<()> {
         content: Some(prompt),
         name: None,
         function_call: None,
+        tool_call_id: None,
+        tool_calls: Vec::new(),
     });
 
     let chat_completion = ChatCompletion::builder(model, messages.clone())
+        .credentials(credentials)
         .create()
         .await?;
     let answer = &chat_completion

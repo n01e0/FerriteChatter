@@ -3,7 +3,7 @@ use clap::Parser;
 use inquire::{Confirm, Editor, Text};
 use openai::{
     chat::{ChatCompletion, ChatCompletionMessage, ChatCompletionMessageRole},
-    set_key,
+    Credentials,
 };
 use std::env;
 use std::fs::File;
@@ -26,9 +26,12 @@ struct Args {
     /// Open Prompt(General Prompt)
     #[clap(long = "general", short = 'g')]
     general: Option<String>,
-    /// OenAI API Key
+    /// OpenAI API Key
     #[clap(long = "key", short = 'k')]
     key: Option<String>,
+    /// OpenAI API Base URL
+    #[clap(long = "base-url", short = 'b')]
+    base_url: Option<String>,
     /// OpenAI Model
     #[clap(long = "model", short = 'm', value_enum)]
     model: Option<Model>,
@@ -48,7 +51,13 @@ async fn main() -> Result<()> {
                 .with_context(|| "You need to set API key to the `OPENAI_API_KEY`")?,
         ),
     );
-    set_key(key);
+    let base_url = args.base_url.unwrap_or(
+        config.get_openai_base_url().clone().unwrap_or(
+            env::var("OPENAI_BASE_URL")
+                .unwrap_or_else(|_| "https://api.openai.com/v1".to_string()),
+        ),
+    );
+    let credentials = Credentials::new(key, base_url);
     let model = args
         .model
         .unwrap_or(config.get_default_model().clone().unwrap_or(DEFAULT_MODEL))
@@ -65,6 +74,8 @@ async fn main() -> Result<()> {
         content: Some(args.general.unwrap_or(String::from(SEED_PROMPT))),
         name: None,
         function_call: None,
+        tool_call_id: None,
+        tool_calls: Vec::new(),
     }];
 
     if let Some(path) = args.file {
@@ -75,6 +86,8 @@ async fn main() -> Result<()> {
             content: Some(input),
             name: None,
             function_call: None,
+            tool_call_id: None,
+            tool_calls: Vec::new(),
         })
     }
 
@@ -92,7 +105,7 @@ async fn main() -> Result<()> {
             }
             "v" => {
                 let input = Editor::new("Prompt:").prompt()?;
-                let answer = ask(&mut messages, input, model).await?;
+                let answer = ask(&mut messages, input, model, credentials.clone()).await?;
                 let content = answer
                     .content
                     .as_ref()
@@ -129,7 +142,7 @@ async fn main() -> Result<()> {
                 println!("Empty message received. :(");
             }
             _ => {
-                let answer = ask(&mut messages, input, model).await?;
+                let answer = ask(&mut messages, input, model, credentials.clone()).await?;
                 let content = answer
                     .content
                     .as_ref()
@@ -145,15 +158,19 @@ async fn ask(
     messages: &mut Vec<ChatCompletionMessage>,
     input: String,
     model: &str,
+    credentials: Credentials
 ) -> Result<ChatCompletionMessage> {
     messages.push(ChatCompletionMessage {
         role: ChatCompletionMessageRole::User,
         content: Some(input),
         name: None,
         function_call: None,
+        tool_call_id: None,
+        tool_calls: Vec::new(),
     });
 
     let chat_completion = ChatCompletion::builder(model, messages.clone())
+        .credentials(credentials)
         .create()
         .await?;
     let answer = chat_completion

@@ -10,6 +10,7 @@ use tia::Tia;
 #[tia(rg)]
 pub struct Config {
     openai_api_key: Option<String>,
+    openai_base_url: Option<String>,
     default_model: Option<core::Model>,
 }
 
@@ -17,6 +18,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             openai_api_key: None,
+            openai_base_url: None,
             default_model: Some(crate::core::Model::Gpt_4o),
         }
     }
