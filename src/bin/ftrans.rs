@@ -41,12 +41,11 @@ async fn main() -> Result<()> {
                 .with_context(|| "You need to set API key to the `OPENAI_API_KEY`")?,
         ),
     );
-    let base_url = args.base_url.unwrap_or(
-        config.get_openai_base_url().clone().unwrap_or(
-            env::var("OPENAI_BASE_URL")
-                .unwrap_or_else(|_| "https://api.openai.com/v1".to_string()),
-        ),
-    );
+    let base_url = args
+        .base_url
+        .unwrap_or(config.get_openai_base_url().clone().unwrap_or(
+            env::var("OPENAI_BASE_URL").unwrap_or_else(|_| "https://api.openai.com/v1".to_string()),
+        ));
     let credentials = Credentials::new(key, base_url);
 
     let model = args
