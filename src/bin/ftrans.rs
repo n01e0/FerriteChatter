@@ -1,14 +1,14 @@
 use anyhow::{Context, Result};
 use clap::Parser;
 use openai::{
-    chat::{ChatCompletion, ChatCompletionMessage, ChatCompletionMessageRole},
+    chat::{ChatCompletionDelta, ChatCompletionMessage, ChatCompletionMessageRole},
     Credentials,
 };
 use std::env;
 use std::io::{self, IsTerminal, Read};
 use FerriteChatter::{
     config::Config,
-    core::{Model, DEFAULT_MODEL},
+    core::{ask, Model, DEFAULT_MODEL},
 };
 
 #[derive(Parser, Debug)]
@@ -62,12 +62,9 @@ async fn main() -> Result<()> {
     let mut messages = vec![ChatCompletionMessage {
         role: role,
         content: Some(args.general.unwrap_or(String::from(
-            "次の文章を、日本語の場合は英語に、日本語以外の場合は日本語に翻訳してください。",
+            "これから渡す文章が、日本語の場合は英語に翻訳し、英語など日本語以外の場合は日本語に翻訳してください。",
         ))),
-        name: None,
-        function_call: None,
-        tool_call_id: None,
-        tool_calls: Vec::new(),
+        ..Default::default()
     }];
 
     let mut stdin = io::stdin();
@@ -87,28 +84,14 @@ async fn main() -> Result<()> {
     messages.push(ChatCompletionMessage {
         role: ChatCompletionMessageRole::User,
         content: Some(prompt),
-        name: None,
-        function_call: None,
-        tool_call_id: None,
-        tool_calls: Vec::new(),
+        ..Default::default()
     });
 
-    let chat_completion = ChatCompletion::builder(model, messages.clone())
-        .credentials(credentials)
-        .create()
-        .await?;
-    let answer = &chat_completion
-        .choices
-        .first()
-        .with_context(|| "Can't read ChatGPT output")?
-        .message;
-    println!(
-        "{}",
-        answer
-            .content
-            .clone()
-            .with_context(|| "Can't get content")?
-            .trim()
-    );
-    Ok(())
+    let stream = ChatCompletionDelta::builder(model, messages.clone())
+        .credentials(credentials.clone())
+        .create_stream()
+        .await
+        .with_context(|| "Can't open Stream")?;
+
+    ask(stream).await.map(|_| ())
 }

@@ -2,15 +2,15 @@ use anyhow::{Context, Result};
 use clap::Parser;
 use inquire::{Confirm, Editor, Text};
 use openai::{
-    chat::{ChatCompletion, ChatCompletionMessage, ChatCompletionMessageRole},
+    chat::{ChatCompletion, ChatCompletionDelta, ChatCompletionMessage, ChatCompletionMessageRole},
     Credentials,
 };
-use std::env;
 use std::fs::File;
 use std::io::{Read, Write};
+use std::{env, io::stdout};
 use FerriteChatter::{
     config::Config,
-    core::{Model, DEFAULT_MODEL},
+    core::{ask, Model, DEFAULT_MODEL},
 };
 
 const SEED_PROMPT: &'static str = r#"
@@ -104,12 +104,24 @@ async fn main() -> Result<()> {
             }
             "v" => {
                 let input = Editor::new("Prompt:").prompt()?;
-                let answer = ask(&mut messages, input, model, credentials.clone()).await?;
-                let content = answer
-                    .content
-                    .as_ref()
-                    .with_context(|| "Can't get content")?;
-                println!("{:?}: {}", &answer.role, content.trim());
+                messages.push(ChatCompletionMessage {
+                    role: ChatCompletionMessageRole::User,
+                    content: Some(input),
+                    ..Default::default()
+                });
+                let stream = ChatCompletionDelta::builder(model, messages.clone())
+                    .credentials(credentials.clone())
+                    .create_stream()
+                    .await
+                    .with_context(|| "Can't open Stream")?;
+
+                let answer = ask(stream)
+                    .await?
+                    .choices
+                    .first()
+                    .with_context(|| "Can't get choices")?
+                    .message
+                    .clone();
                 messages.push(answer);
             }
             "save" => {
@@ -141,42 +153,26 @@ async fn main() -> Result<()> {
                 println!("Empty message received. :(");
             }
             _ => {
-                let answer = ask(&mut messages, input, model, credentials.clone()).await?;
-                let content = answer
-                    .content
-                    .as_ref()
-                    .with_context(|| "Can't get content")?;
-                println!("{:?}: {}", &answer.role, content.trim());
+                messages.push(ChatCompletionMessage {
+                    role: ChatCompletionMessageRole::User,
+                    content: Some(input),
+                    ..Default::default()
+                });
+                let stream = ChatCompletionDelta::builder(model, messages.clone())
+                    .credentials(credentials.clone())
+                    .create_stream()
+                    .await
+                    .with_context(|| "Can't open Stream")?;
+
+                let answer = ask(stream)
+                    .await?
+                    .choices
+                    .first()
+                    .with_context(|| "Can't get choices")?
+                    .message
+                    .clone();
                 messages.push(answer);
             }
         }
     }
-}
-
-async fn ask(
-    messages: &mut Vec<ChatCompletionMessage>,
-    input: String,
-    model: &str,
-    credentials: Credentials,
-) -> Result<ChatCompletionMessage> {
-    messages.push(ChatCompletionMessage {
-        role: ChatCompletionMessageRole::User,
-        content: Some(input),
-        name: None,
-        function_call: None,
-        tool_call_id: None,
-        tool_calls: Vec::new(),
-    });
-
-    let chat_completion = ChatCompletion::builder(model, messages.clone())
-        .credentials(credentials)
-        .create()
-        .await?;
-    let answer = chat_completion
-        .choices
-        .first()
-        .with_context(|| "Can't read ChatGPT output")?
-        .message
-        .clone();
-    Ok(answer)
 }
