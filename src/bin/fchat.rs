@@ -2,12 +2,12 @@ use anyhow::{Context, Result};
 use clap::Parser;
 use inquire::{Confirm, Editor, Text};
 use openai::{
-    chat::{ChatCompletion, ChatCompletionDelta, ChatCompletionMessage, ChatCompletionMessageRole},
+    chat::{ChatCompletionDelta, ChatCompletionMessage, ChatCompletionMessageRole},
     Credentials,
 };
+use std::env;
 use std::fs::File;
 use std::io::{Read, Write};
-use std::{env, io::stdout};
 use FerriteChatter::{
     config::Config,
     core::{ask, Model, DEFAULT_MODEL},
