@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use clap::Parser;
 use openai::{
-    chat::{ChatCompletion, ChatCompletionMessage, ChatCompletionMessageRole},
+    chat::{ChatCompletionDelta, ChatCompletionMessage, ChatCompletionMessageRole},
     Credentials,
 };
 use std::env;
@@ -9,7 +9,7 @@ use std::fs::File;
 use std::io::{self, IsTerminal, Read};
 use FerriteChatter::{
     config::Config,
-    core::{Model, DEFAULT_MODEL},
+    core::{ask, Model, DEFAULT_MODEL},
 };
 
 #[derive(Parser, Debug)]
@@ -78,12 +78,9 @@ async fn main() -> Result<()> {
     let mut messages = Vec::new();
     if let Some(general) = args.general {
         messages.push(ChatCompletionMessage {
-            role: role,
+            role,
             content: Some(general),
-            name: None,
-            function_call: None,
-            tool_call_id: None,
-            tool_calls: Vec::new(),
+            ..Default::default()
         })
     }
     if let Some(path) = args.file {
@@ -92,39 +89,21 @@ async fn main() -> Result<()> {
         messages.push(ChatCompletionMessage {
             role: ChatCompletionMessageRole::User,
             content: Some(input),
-            name: None,
-            function_call: None,
-            tool_call_id: None,
-            tool_calls: Vec::new(),
+            ..Default::default()
         })
     }
 
     messages.push(ChatCompletionMessage {
         role: ChatCompletionMessageRole::User,
         content: Some(prompt),
-        name: None,
-        function_call: None,
-        tool_call_id: None,
-        tool_calls: Vec::new(),
+        ..Default::default()
     });
 
-    let chat_completion = ChatCompletion::builder(model, messages.clone())
-        .credentials(credentials)
-        .create()
-        .await?;
-    let answer = &chat_completion
-        .choices
-        .first()
-        .with_context(|| "Can't read ChatGPT output")?
-        .message;
+    let stream = ChatCompletionDelta::builder(model, messages.clone())
+        .credentials(credentials.clone())
+        .create_stream()
+        .await
+        .with_context(|| "Can't open Stream")?;
 
-    println!(
-        "{}",
-        answer
-            .content
-            .clone()
-            .with_context(|| "Can't get content")?
-            .trim()
-    );
-    Ok(())
+    ask(stream).await.map(|_| ())
 }
