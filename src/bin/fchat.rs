@@ -71,10 +71,7 @@ async fn main() -> Result<()> {
     let mut messages = vec![ChatCompletionMessage {
         role: role,
         content: Some(args.general.unwrap_or(String::from(SEED_PROMPT))),
-        name: None,
-        function_call: None,
-        tool_call_id: None,
-        tool_calls: Vec::new(),
+        ..Default::default()
     }];
 
     if let Some(path) = args.file {
@@ -83,10 +80,7 @@ async fn main() -> Result<()> {
         messages.push(ChatCompletionMessage {
             role: ChatCompletionMessageRole::User,
             content: Some(input),
-            name: None,
-            function_call: None,
-            tool_call_id: None,
-            tool_calls: Vec::new(),
+            ..Default::default()
         })
     }
 
