@@ -4,7 +4,7 @@ version = 4
 
 [[package]]
 name = "FerriteChatter"
-version = "6.2.0"
+version = "6.3.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -368,9 +368,9 @@ checksum = "e8c02a5121d4ea3eb16a80748c74f5549a5665e4c21333c6098f283870fbdea6"
 
 [[package]]
 name = "ferrite_model_gen"
-version = "0.2.0"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7ce0454bb779bc09ea4bbf0bd30fa819bca07798d8f992220f750586fa60ed96"
+checksum = "39cfabfadddf2c952e2c998f30fd58e1f49f855e1801fef0eb7814fbcdf0a322"
 dependencies = [
  "anyhow",
  "clap",
