@@ -23,7 +23,7 @@ path = "src/bin/ftrans.rs"
 
 [dependencies]
 anyhow = "1.0.98"
-clap = { version="4.5.35", features=["derive"] }
+clap = { version="4.5.36", features=["derive"] }
 inquire = { version="0.7.5", features=["editor"] }
 openai = "1.1.0"
 serde = { version = "1.0.219", features = ["derive"] }
