@@ -1,6 +1,6 @@
 [package]
 name = "ferrite_model_gen"
-version = "0.2.0"
+version = "0.3.0"
 authors = ["n01e0 <reoshiseki@gmail.com>"]
 edition = "2021"
 description = "ChatGPT CLI"
