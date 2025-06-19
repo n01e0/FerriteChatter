@@ -20,7 +20,7 @@ impl SessionManager {
             .await
             .with_context(|| format!("Failed to open database at {}", path))?;
         let conn = db.connect()?;
-        // Create sessions table if missing; includes summary column
+        // Create sessions table if missing (with summary column)
         conn.execute(
             "CREATE TABLE IF NOT EXISTS sessions (\
              id INTEGER PRIMARY KEY AUTOINCREMENT,\
@@ -30,47 +30,73 @@ impl SessionManager {
             (),
         )
         .await?;
-        // Ensure summary column exists in older DBs
-        {
-            let mut has_summary = false;
-            conn.clone().pragma_query("table_info(sessions)", |row| {
-                if let Ok(Value::Text(col)) = row.get_value(1) {
-                    if col == "summary" {
-                        has_summary = true;
-                    }
+        // Ensure summary column exists only if missing
+        let mut has_summary = false;
+        conn.clone().pragma_query("table_info(sessions)", |row| {
+            if let Ok(Value::Text(col)) = row.get_value(1) {
+                if col == "summary" {
+                    has_summary = true;
                 }
-                Ok(())
-            })?;
-            if !has_summary {
-                conn.execute("ALTER TABLE sessions ADD COLUMN summary TEXT", ())
-                    .await?;
+            }
+            Ok(())
+        })?;
+        if !has_summary {
+            // Attempt to add summary column; ignore duplicate-column errors
+            if let Err(err) = conn
+                .execute("ALTER TABLE sessions ADD COLUMN summary TEXT", ())
+                .await
+            {
+                let msg = err.to_string();
+                if !msg.contains("duplicate column name") {
+                    return Err(err.into());
+                }
             }
         }
         Ok(SessionManager { conn })
     }
 
+    /// List sessions; returns (id, name, optional summary).
     pub async fn list_sessions(&self) -> Result<Vec<(i64, String, Option<String>)>> {
-        let mut rows = self
+        // Try selecting with summary column
+        let attempt = self
             .conn
             .query("SELECT id, name, summary FROM sessions", ())
-            .await?;
-        let mut sessions = Vec::new();
-        while let Some(row) = rows.next().await? {
-            let id = match row.get_value(0)? {
-                Value::Integer(i) => i,
-                _ => continue,
-            };
-            let name = match row.get_value(1)? {
-                Value::Text(s) => s,
-                _ => continue,
-            };
-            let summary = match row.get_value(2)? {
-                Value::Text(s) if !s.is_empty() => Some(s),
-                _ => None,
-            };
-            sessions.push((id, name, summary));
+            .await;
+        if let Ok(mut rows) = attempt {
+            let mut sessions = Vec::new();
+            while let Some(row) = rows.next().await? {
+                let id = match row.get_value(0)? {
+                    Value::Integer(i) => i,
+                    _ => continue,
+                };
+                let name = match row.get_value(1)? {
+                    Value::Text(s) => s,
+                    _ => continue,
+                };
+                let summary = match row.get_value(2)? {
+                    Value::Text(s) if !s.is_empty() => Some(s),
+                    _ => None,
+                };
+                sessions.push((id, name, summary));
+            }
+            Ok(sessions)
+        } else {
+            // Fallback if summary column missing
+            let mut rows = self.conn.query("SELECT id, name FROM sessions", ()).await?;
+            let mut sessions = Vec::new();
+            while let Some(row) = rows.next().await? {
+                let id = match row.get_value(0)? {
+                    Value::Integer(i) => i,
+                    _ => continue,
+                };
+                let name = match row.get_value(1)? {
+                    Value::Text(s) => s,
+                    _ => continue,
+                };
+                sessions.push((id, name, None));
+            }
+            Ok(sessions)
         }
-        Ok(sessions)
     }
 
     pub async fn load_session(&self, id: i64) -> Result<Vec<SessionMessage>> {

@@ -193,16 +193,23 @@ async fn main() -> Result<()> {
             let mut labels = Vec::new();
             let mut ids = Vec::new();
             for (id, name, summary_opt) in existing.iter() {
+                // Use stored summary if non-empty, else generate and store
                 let summary = if let Some(s) = summary_opt {
-                    s.clone()
+                    if !s.is_empty() {
+                        s.clone()
+                    } else {
+                        let msgs = session_manager.load_session(*id).await?;
+                        let s_new = generate_summary(&msgs, credentials.clone(), model).await?;
+                        session_manager.update_summary(*id, &s_new).await?;
+                        s_new
+                    }
                 } else {
-                    String::new()
+                    let msgs = session_manager.load_session(*id).await?;
+                    let s_new = generate_summary(&msgs, credentials.clone(), model).await?;
+                    session_manager.update_summary(*id, &s_new).await?;
+                    s_new
                 };
-                labels.push(if summary.is_empty() {
-                    name.clone()
-                } else {
-                    format!("{} | {}", name, summary)
-                });
+                labels.push(format!("{} | {}", name, summary));
                 ids.push(*id);
             }
             labels.push("New session".to_string());
