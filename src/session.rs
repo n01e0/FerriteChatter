@@ -20,20 +20,40 @@ impl SessionManager {
             .await
             .with_context(|| format!("Failed to open database at {}", path))?;
         let conn = db.connect()?;
-        // Create sessions table without inline UNIQUE constraint (will add index separately)
+        // Create sessions table if missing; includes summary column
         conn.execute(
             "CREATE TABLE IF NOT EXISTS sessions (\
              id INTEGER PRIMARY KEY AUTOINCREMENT,\
              name TEXT NOT NULL,\
-             messages TEXT NOT NULL)",
+             messages TEXT NOT NULL,\
+             summary TEXT)",
             (),
         )
         .await?;
+        // Ensure summary column exists in older DBs
+        {
+            let mut has_summary = false;
+            conn.clone().pragma_query("table_info(sessions)", |row| {
+                if let Ok(Value::Text(col)) = row.get_value(1) {
+                    if col == "summary" {
+                        has_summary = true;
+                    }
+                }
+                Ok(())
+            })?;
+            if !has_summary {
+                conn.execute("ALTER TABLE sessions ADD COLUMN summary TEXT", ())
+                    .await?;
+            }
+        }
         Ok(SessionManager { conn })
     }
 
-    pub async fn list_sessions(&self) -> Result<Vec<(i64, String)>> {
-        let mut rows = self.conn.query("SELECT id, name FROM sessions", ()).await?;
+    pub async fn list_sessions(&self) -> Result<Vec<(i64, String, Option<String>)>> {
+        let mut rows = self
+            .conn
+            .query("SELECT id, name, summary FROM sessions", ())
+            .await?;
         let mut sessions = Vec::new();
         while let Some(row) = rows.next().await? {
             let id = match row.get_value(0)? {
@@ -44,7 +64,11 @@ impl SessionManager {
                 Value::Text(s) => s,
                 _ => continue,
             };
-            sessions.push((id, name));
+            let summary = match row.get_value(2)? {
+                Value::Text(s) if !s.is_empty() => Some(s),
+                _ => None,
+            };
+            sessions.push((id, name, summary));
         }
         Ok(sessions)
     }
@@ -73,7 +97,10 @@ impl SessionManager {
         // Ensure unique session name: append random suffix if name already exists
         let mut final_name = name.to_string();
         let existing = self.list_sessions().await?;
-        if existing.iter().any(|(_, n)| n == &final_name) {
+        if existing
+            .iter()
+            .any(|(_, session_name, _)| session_name == &final_name)
+        {
             let mut rng = rand::thread_rng();
             loop {
                 let suffix: String = (&mut rng)
@@ -82,7 +109,10 @@ impl SessionManager {
                     .map(char::from)
                     .collect();
                 let candidate = format!("{}-{}", name, suffix);
-                if !existing.iter().any(|(_, n)| n == &candidate) {
+                if !existing
+                    .iter()
+                    .any(|(_, session_name, _)| session_name == &candidate)
+                {
                     final_name = candidate;
                     break;
                 }
@@ -122,6 +152,24 @@ impl SessionManager {
                 "UPDATE sessions SET messages = ? WHERE id = ?",
                 (json.as_str(), id),
             )
+            .await?;
+        Ok(())
+    }
+
+    /// Update summary field for a session
+    pub async fn update_summary(&self, id: i64, summary: &str) -> Result<()> {
+        self.conn
+            .execute(
+                "UPDATE sessions SET summary = ? WHERE id = ?",
+                (summary, id),
+            )
+            .await?;
+        Ok(())
+    }
+    /// Delete a session by id
+    pub async fn delete_session(&self, id: i64) -> Result<()> {
+        self.conn
+            .execute("DELETE FROM sessions WHERE id = ?", [id])
             .await?;
         Ok(())
     }
