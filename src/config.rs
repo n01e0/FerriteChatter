@@ -2,7 +2,7 @@ use crate::core;
 use anyhow::{Context, Result};
 use serde::Deserialize;
 use std::env;
-use std::fs::read_to_string;
+use std::fs::{create_dir_all, read_to_string};
 use std::path::Path;
 use tia::Tia;
 
@@ -26,19 +26,21 @@ impl Default for Config {
 
 impl Config {
     pub fn load() -> Result<Self> {
-        let path = format!(
-            "{}/.ferriteconf.yaml",
-            env::var("XDG_CONFIG_HOME").unwrap_or(format!(
-                "{}/.config",
-                env::var("HOME").with_context(|| "Where is the HOME?")?
-            ))
-        );
+        // Determine configuration directory: $XDG_CONFIG_HOME/ferrite or $HOME/.config/ferrite
+        let home = env::var("HOME").with_context(|| "Where is the HOME?")?;
+        let base = env::var("XDG_CONFIG_HOME").unwrap_or_else(|_| format!("{}/.config", home));
+        let conf_dir = Path::new(&base).join("ferrite");
+        create_dir_all(&conf_dir)
+            .with_context(|| format!("Can't create config directory {:?}", &conf_dir))?;
+        let config_path = conf_dir.join("ferriteconf.yaml");
 
-        if !Path::new(&path).exists() {
+        if !config_path.exists() {
             Ok(Self::default())
         } else {
-            serde_yaml::from_str(&read_to_string(path).with_context(|| "Can't read config file")?)
-                .with_context(|| "Can't parse config file")
+            let content = read_to_string(&config_path)
+                .with_context(|| format!("Can't read config file {:?}", &config_path))?;
+            serde_yaml::from_str(&content)
+                .with_context(|| format!("Can't parse config file {:?}", &config_path))
         }
     }
 }
