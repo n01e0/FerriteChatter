@@ -7,7 +7,7 @@ ChatGPTとターミナル上で会話できるやつ。
 ## Usage
 API keyは`OPENAI_API_KEY`に設定
 
-もしくは`$XDG_CONFIG_HOME/.ferriteconf.yaml`に記載。
+もしくは`$XDG_CONFIG_HOME/ferrite/ferriteconf.yaml`に記載。
 
 あとは実行するだけ
 
@@ -209,7 +209,7 @@ tnoremap <Esc> <C-\><C-n>
 ```
 
 ## config file (Optional)
-`$HOME/.ferriteconf.yaml` or `$XDG_CONFIG_HOME/.ferriteconf.yaml`
+`$HOME/ferrite/ferriteconf.yaml` or `$XDG_CONFIG_HOME/ferrite/ferriteconf.yaml`
 
 
 ```yaml
