@@ -30,10 +30,12 @@ async fn generate_summary(
         ),
         ..Default::default()
     });
-    for m in session_msgs {
-        let role = match m.role.as_str() {
-            "assistant" => ChatCompletionMessageRole::Assistant,
-            _ => ChatCompletionMessageRole::User,
+    // Include only user and assistant messages for summary; skip system messages
+    for m in session_msgs.iter().filter(|m| m.role != "system") {
+        let role = if m.role == "assistant" {
+            ChatCompletionMessageRole::Assistant
+        } else {
+            ChatCompletionMessageRole::User
         };
         messages.push(ChatCompletionMessage {
             role,
@@ -118,14 +120,14 @@ async fn main() -> Result<()> {
     let ferrite_dir = Path::new(&config_base).join("ferrite");
     fs::create_dir_all(&ferrite_dir)?;
     let db_path = ferrite_dir.join("session.db").to_string_lossy().to_string();
-    let session_manager = SessionManager::new(&db_path).await?;
+    let session_manager = SessionManager::new(&db_path)?;
 
-    let existing_sessions = session_manager.list_sessions().await?;
+    let existing_sessions = session_manager.list_sessions()?;
     let mut session_id: i64;
     let mut messages: Vec<ChatCompletionMessage> = Vec::new();
     if existing_sessions.is_empty() {
-        // No existing sessions: create a new one
-        let name = Text::new("No sessions found. Enter a name for a new session:").prompt()?;
+        // No existing sessions: create a new one with default name
+        let name = String::new();
         messages.push(ChatCompletionMessage {
             role,
             content: Some(general_content.clone()),
@@ -152,15 +154,14 @@ async fn main() -> Result<()> {
                 content: m.content.clone().unwrap_or_default(),
             })
             .collect();
-        session_id = session_manager.create_session(&name, &session_msgs).await?;
+        session_id = session_manager.create_session(&name, &session_msgs)?;
     } else {
         // Session selection with inline preview in labels
         session_id = loop {
-            let existing = session_manager.list_sessions().await?;
+            let existing = session_manager.list_sessions()?;
             if existing.is_empty() {
-                // No sessions: create a new one
-                let name =
-                    Text::new("No sessions found. Enter a name for a new session:").prompt()?;
+                // No sessions: create a new one with default name
+                let name = String::new();
                 messages.push(ChatCompletionMessage {
                     role,
                     content: Some(general_content.clone()),
@@ -187,36 +188,42 @@ async fn main() -> Result<()> {
                         content: m.content.clone().unwrap_or_default(),
                     })
                     .collect();
-                break session_manager.create_session(&name, &session_msgs).await?;
+                break session_manager.create_session(&name, &session_msgs)?;
             }
             // Build labels and ids with summary preview
             let mut labels = Vec::new();
             let mut ids = Vec::new();
-            for (id, name, summary_opt) in existing.iter() {
+            for (id, _name, summary_opt) in existing.iter() {
+                // Skip sessions that contain only system messages
+                let msgs = session_manager.load_session(*id)?;
+                if msgs.iter().all(|m| m.role == "system") {
+                    continue;
+                }
                 // Use stored summary if non-empty, else generate and store
                 let summary = if let Some(s) = summary_opt {
                     if !s.is_empty() {
                         s.clone()
                     } else {
-                        let msgs = session_manager.load_session(*id).await?;
+                        let msgs = session_manager.load_session(*id)?;
                         let s_new = generate_summary(&msgs, credentials.clone(), model).await?;
-                        session_manager.update_summary(*id, &s_new).await?;
+                        session_manager.update_summary(*id, &s_new)?;
                         s_new
                     }
                 } else {
-                    let msgs = session_manager.load_session(*id).await?;
+                    let msgs = session_manager.load_session(*id)?;
                     let s_new = generate_summary(&msgs, credentials.clone(), model).await?;
-                    session_manager.update_summary(*id, &s_new).await?;
+                    session_manager.update_summary(*id, &s_new)?;
                     s_new
                 };
-                labels.push(format!("{} | {}", name, summary));
+                // Use summary as the selection label
+                labels.push(summary.clone());
                 ids.push(*id);
             }
             labels.push("New session".to_string());
             labels.push("Delete session".to_string());
             let selection = Select::new("Choose a session:", labels.clone()).prompt()?;
             if selection == "New session" {
-                let name = Text::new("Enter a name for a new session:").prompt()?;
+                let name = String::new();
                 messages.push(ChatCompletionMessage {
                     role,
                     content: Some(general_content.clone()),
@@ -243,7 +250,7 @@ async fn main() -> Result<()> {
                         content: m.content.clone().unwrap_or_default(),
                     })
                     .collect();
-                break session_manager.create_session(&name, &session_msgs).await?;
+                break session_manager.create_session(&name, &session_msgs)?;
             } else if selection == "Delete session" {
                 // Select session to delete
                 let names: Vec<String> = existing.iter().map(|(_, name, _)| name.clone()).collect();
@@ -253,7 +260,7 @@ async fn main() -> Result<()> {
                         .with_default(false)
                         .prompt()?
                     {
-                        session_manager.delete_session(*del_id).await?;
+                        session_manager.delete_session(*del_id)?;
                         println!("Deleted session: {}", to_delete);
                     }
                 }
@@ -266,7 +273,7 @@ async fn main() -> Result<()> {
         };
         // Load and populate messages for selected session
         messages.clear();
-        let loaded = session_manager.load_session(session_id).await?;
+        let loaded = session_manager.load_session(session_id)?;
         for m in loaded {
             let role_enum = match m.role.as_str() {
                 "system" => ChatCompletionMessageRole::System,
@@ -313,9 +320,7 @@ async fn main() -> Result<()> {
                         content: m.content.clone().unwrap_or_default(),
                     })
                     .collect();
-                session_manager
-                    .update_session(session_id, &session_msgs)
-                    .await?;
+                session_manager.update_session(session_id, &session_msgs)?;
                 let stream = ChatCompletionDelta::builder(model, messages.clone())
                     .credentials(credentials.clone())
                     .create_stream()
@@ -343,9 +348,7 @@ async fn main() -> Result<()> {
                         content: m.content.clone().unwrap_or_default(),
                     })
                     .collect();
-                session_manager
-                    .update_session(session_id, &session_msgs)
-                    .await?;
+                session_manager.update_session(session_id, &session_msgs)?;
             }
             "/save" => {
                 let path = Text::new("path:").prompt()?;
@@ -373,31 +376,37 @@ async fn main() -> Result<()> {
                 }
             }
             "/session" => {
-                let existing_sessions = session_manager.list_sessions().await?;
+                let existing_sessions = session_manager.list_sessions()?;
                 if existing_sessions.is_empty() {
                     println!("No sessions available.");
                 } else {
                     // Inline preview labels for session switching
                     let mut labels = Vec::new();
                     let mut ids = Vec::new();
-                    for (id, name, summary_opt) in &existing_sessions {
+                    for (id, _name, summary_opt) in &existing_sessions {
+                        // Skip sessions that contain only system messages
+                        let msgs = session_manager.load_session(*id)?;
+                        if msgs.iter().all(|m| m.role == "system") {
+                            continue;
+                        }
                         // Use or generate summary preview
                         let summary = if let Some(s) = summary_opt {
                             s.clone()
                         } else {
-                            let msgs = session_manager.load_session(*id).await?;
+                            let msgs = session_manager.load_session(*id)?;
                             let s = generate_summary(&msgs, credentials.clone(), model).await?;
-                            session_manager.update_summary(*id, &s).await?;
+                            session_manager.update_summary(*id, &s)?;
                             s
                         };
-                        labels.push(format!("{} | {}", name, summary));
+                        // Use summary as the selection label
+                        labels.push(summary.clone());
                         ids.push(*id);
                     }
                     let selection = Select::new("Choose a session:", labels.clone()).prompt()?;
                     // Find selected id and load messages
                     if let Some(idx) = labels.iter().position(|l| l == &selection) {
                         let sel_id = ids[idx];
-                        let loaded = session_manager.load_session(sel_id).await?;
+                        let loaded = session_manager.load_session(sel_id)?;
                         messages.clear();
                         for m in loaded {
                             let role_enum = match m.role.as_str() {
@@ -457,9 +466,7 @@ async fn main() -> Result<()> {
                         content: m.content.clone().unwrap_or_default(),
                     })
                     .collect();
-                session_manager
-                    .update_session(session_id, &session_msgs)
-                    .await?;
+                session_manager.update_session(session_id, &session_msgs)?;
                 let stream = ChatCompletionDelta::builder(model, messages.clone())
                     .credentials(credentials.clone())
                     .create_stream()
@@ -487,9 +494,7 @@ async fn main() -> Result<()> {
                         content: m.content.clone().unwrap_or_default(),
                     })
                     .collect();
-                session_manager
-                    .update_session(session_id, &session_msgs)
-                    .await?;
+                session_manager.update_session(session_id, &session_msgs)?;
             }
         }
     }
