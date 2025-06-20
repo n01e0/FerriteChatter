@@ -1,5 +1,5 @@
-use anyhow::{anyhow, Context, Result};
-use limbo::{Builder, Connection, Value};
+use anyhow::{Context, Result};
+use rusqlite::{Connection, params};
 use rand::{distributions::Alphanumeric, Rng};
 use serde::{Deserialize, Serialize};
 
@@ -14,101 +14,49 @@ pub struct SessionManager {
 }
 
 impl SessionManager {
-    pub async fn new(path: &str) -> Result<Self> {
-        let db = Builder::new_local(path)
-            .build()
-            .await
+    pub fn new(path: &str) -> Result<Self> {
+        let conn = Connection::open(path)
             .with_context(|| format!("Failed to open database at {}", path))?;
-        let conn = db.connect()?;
-        // Create sessions table if missing (with summary column)
+        conn.pragma_update(None, "journal_mode", &"WAL")?;
+        conn.pragma_update(None, "synchronous", &"NORMAL")?;
+        conn.busy_timeout(std::time::Duration::from_millis(5000))?;
         conn.execute(
-            "CREATE TABLE IF NOT EXISTS sessions (\
-             id INTEGER PRIMARY KEY AUTOINCREMENT,\
-             name TEXT NOT NULL,\
-             messages TEXT NOT NULL,\
-             summary TEXT)",
-            (),
-        )
-        .await?;
-        // Ensure summary column exists only if missing
-        let mut has_summary = false;
-        conn.clone().pragma_query("table_info(sessions)", |row| {
-            if let Ok(Value::Text(col)) = row.get_value(1) {
-                if col == "summary" {
-                    has_summary = true;
-                }
-            }
-            Ok(())
-        })?;
-        if !has_summary {
-            // Attempt to add summary column; ignore duplicate-column errors
-            if let Err(err) = conn
-                .execute("ALTER TABLE sessions ADD COLUMN summary TEXT", ())
-                .await
-            {
-                let msg = err.to_string();
-                if !msg.contains("duplicate column name") {
-                    return Err(err.into());
-                }
-            }
-        }
+            "CREATE TABLE IF NOT EXISTS sessions (
+                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                 name TEXT NOT NULL,
+                 messages TEXT NOT NULL,
+                 summary TEXT
+             )",
+            [],
+        )?;
         Ok(SessionManager { conn })
     }
 
     /// List sessions; returns (id, name, optional summary).
-    pub async fn list_sessions(&self) -> Result<Vec<(i64, String, Option<String>)>> {
-        // Try selecting with summary column
-        let attempt = self
-            .conn
-            .query("SELECT id, name, summary FROM sessions", ())
-            .await;
-        if let Ok(mut rows) = attempt {
-            let mut sessions = Vec::new();
-            while let Some(row) = rows.next().await? {
-                let id = match row.get_value(0)? {
-                    Value::Integer(i) => i,
-                    _ => continue,
-                };
-                let name = match row.get_value(1)? {
-                    Value::Text(s) => s,
-                    _ => continue,
-                };
-                let summary = match row.get_value(2)? {
-                    Value::Text(s) if !s.is_empty() => Some(s),
-                    _ => None,
-                };
-                sessions.push((id, name, summary));
-            }
-            Ok(sessions)
-        } else {
-            // Fallback if summary column missing
-            let mut rows = self.conn.query("SELECT id, name FROM sessions", ()).await?;
-            let mut sessions = Vec::new();
-            while let Some(row) = rows.next().await? {
-                let id = match row.get_value(0)? {
-                    Value::Integer(i) => i,
-                    _ => continue,
-                };
-                let name = match row.get_value(1)? {
-                    Value::Text(s) => s,
-                    _ => continue,
-                };
-                sessions.push((id, name, None));
-            }
-            Ok(sessions)
+    pub fn list_sessions(&self) -> Result<Vec<(i64, String, Option<String>)>> {
+        let mut stmt = self.conn.prepare("SELECT id, name, summary FROM sessions")?;
+        let rows = stmt.query_map([], |row| {
+            let id: i64 = row.get(0)?;
+            let name: String = row.get(1)?;
+            let summary_raw: Option<String> = row.get(2)?;
+            let summary = match summary_raw {
+                Some(s) if !s.is_empty() => Some(s),
+                _ => None,
+            };
+            Ok((id, name, summary))
+        })?;
+        let mut sessions = Vec::new();
+        for row in rows {
+            sessions.push(row?);
         }
+        Ok(sessions)
     }
 
-    pub async fn load_session(&self, id: i64) -> Result<Vec<SessionMessage>> {
-        let mut rows = self
-            .conn
-            .query("SELECT messages FROM sessions WHERE id = ?", [id])
-            .await?;
-        if let Some(row) = rows.next().await? {
-            let json = match row.get_value(0)? {
-                Value::Text(s) => s,
-                _ => String::new(),
-            };
+    pub fn load_session(&self, id: i64) -> Result<Vec<SessionMessage>> {
+        let mut stmt = self.conn.prepare("SELECT messages FROM sessions WHERE id = ?1")?;
+        let mut rows = stmt.query(params![id])?;
+        if let Some(row) = rows.next()? {
+            let json: String = row.get(0)?;
             let messages: Vec<SessionMessage> = serde_json::from_str(&json)
                 .with_context(|| "Failed to deserialize session messages")?;
             Ok(messages)
@@ -117,12 +65,12 @@ impl SessionManager {
         }
     }
 
-    pub async fn create_session(&self, name: &str, messages: &[SessionMessage]) -> Result<i64> {
+    pub fn create_session(&self, name: &str, messages: &[SessionMessage]) -> Result<i64> {
         let json = serde_json::to_string(messages)
             .with_context(|| "Failed to serialize session messages")?;
         // Ensure unique session name: append random suffix if name already exists
         let mut final_name = name.to_string();
-        let existing = self.list_sessions().await?;
+        let existing = self.list_sessions()?;
         if existing
             .iter()
             .any(|(_, session_name, _)| session_name == &final_name)
@@ -145,58 +93,37 @@ impl SessionManager {
             }
         }
         // Insert the session with the (possibly modified) unique name
-        self.conn
-            .execute(
-                "INSERT INTO sessions (name, messages) VALUES (?, ?)",
-                (final_name.as_str(), json.as_str()),
-            )
-            .await?;
-        // Retrieve the new session id
-        let mut rows = self
-            .conn
-            .query(
-                "SELECT id FROM sessions WHERE name = ?",
-                [final_name.as_str()],
-            )
-            .await?;
-        if let Some(row) = rows.next().await? {
-            let id = match row.get_value(0)? {
-                Value::Integer(i) => i,
-                _ => return Err(anyhow!("Invalid session id type")),
-            };
-            Ok(id)
-        } else {
-            Err(anyhow!("Failed to retrieve session id"))
-        }
+        self.conn.execute(
+            "INSERT INTO sessions (name, messages) VALUES (?1, ?2)",
+            params![final_name, json],
+        )?;
+        Ok(self.conn.last_insert_rowid())
     }
 
-    pub async fn update_session(&self, id: i64, messages: &[SessionMessage]) -> Result<()> {
+    pub fn update_session(&self, id: i64, messages: &[SessionMessage]) -> Result<()> {
         let json = serde_json::to_string(messages)
             .with_context(|| "Failed to serialize session messages")?;
-        self.conn
-            .execute(
-                "UPDATE sessions SET messages = ? WHERE id = ?",
-                (json.as_str(), id),
-            )
-            .await?;
+        self.conn.execute(
+            "UPDATE sessions SET messages = ?1 WHERE id = ?2",
+            params![json, id],
+        )?;
         Ok(())
     }
 
     /// Update summary field for a session
-    pub async fn update_summary(&self, id: i64, summary: &str) -> Result<()> {
-        self.conn
-            .execute(
-                "UPDATE sessions SET summary = ? WHERE id = ?",
-                (summary, id),
-            )
-            .await?;
+    pub fn update_summary(&self, id: i64, summary: &str) -> Result<()> {
+        self.conn.execute(
+            "UPDATE sessions SET summary = ?1 WHERE id = ?2",
+            params![summary, id],
+        )?;
         Ok(())
     }
     /// Delete a session by id
-    pub async fn delete_session(&self, id: i64) -> Result<()> {
-        self.conn
-            .execute("DELETE FROM sessions WHERE id = ?", [id])
-            .await?;
+    pub fn delete_session(&self, id: i64) -> Result<()> {
+        self.conn.execute(
+            "DELETE FROM sessions WHERE id = ?1",
+            params![id],
+        )?;
         Ok(())
     }
 }
