@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
-use rusqlite::{Connection, params};
 use rand::{distributions::Alphanumeric, Rng};
+use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -17,9 +17,10 @@ impl SessionManager {
     pub fn new(path: &str) -> Result<Self> {
         let conn = Connection::open(path)
             .with_context(|| format!("Failed to open database at {}", path))?;
+        conn.busy_timeout(std::time::Duration::from_millis(5000))?;
+        // Configure WAL mode and synchronization; allow waiting for locks
         conn.pragma_update(None, "journal_mode", &"WAL")?;
         conn.pragma_update(None, "synchronous", &"NORMAL")?;
-        conn.busy_timeout(std::time::Duration::from_millis(5000))?;
         conn.execute(
             "CREATE TABLE IF NOT EXISTS sessions (
                  id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -34,7 +35,9 @@ impl SessionManager {
 
     /// List sessions; returns (id, name, optional summary).
     pub fn list_sessions(&self) -> Result<Vec<(i64, String, Option<String>)>> {
-        let mut stmt = self.conn.prepare("SELECT id, name, summary FROM sessions")?;
+        let mut stmt = self
+            .conn
+            .prepare("SELECT id, name, summary FROM sessions")?;
         let rows = stmt.query_map([], |row| {
             let id: i64 = row.get(0)?;
             let name: String = row.get(1)?;
@@ -53,7 +56,9 @@ impl SessionManager {
     }
 
     pub fn load_session(&self, id: i64) -> Result<Vec<SessionMessage>> {
-        let mut stmt = self.conn.prepare("SELECT messages FROM sessions WHERE id = ?1")?;
+        let mut stmt = self
+            .conn
+            .prepare("SELECT messages FROM sessions WHERE id = ?1")?;
         let mut rows = stmt.query(params![id])?;
         if let Some(row) = rows.next()? {
             let json: String = row.get(0)?;
@@ -120,10 +125,8 @@ impl SessionManager {
     }
     /// Delete a session by id
     pub fn delete_session(&self, id: i64) -> Result<()> {
-        self.conn.execute(
-            "DELETE FROM sessions WHERE id = ?1",
-            params![id],
-        )?;
+        self.conn
+            .execute("DELETE FROM sessions WHERE id = ?1", params![id])?;
         Ok(())
     }
 }
