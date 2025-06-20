@@ -252,17 +252,22 @@ async fn main() -> Result<()> {
                     .collect();
                 break session_manager.create_session(&name, &session_msgs)?;
             } else if selection == "Delete session" {
-                // Select session to delete
-                let names: Vec<String> = existing.iter().map(|(_, name, _)| name.clone()).collect();
-                let to_delete = Select::new("Select session to delete:", names).prompt()?;
-                if let Some((del_id, _, _)) = existing.iter().find(|(_, n, _)| n == &to_delete) {
-                    if Confirm::new(&format!("Delete session '{}' ?", to_delete))
-                        .with_default(false)
-                        .prompt()?
-                    {
-                        session_manager.delete_session(*del_id)?;
-                        println!("Deleted session: {}", to_delete);
-                    }
+                // Select session to delete by summary preview
+                let summary_count = ids.len();
+                let delete_summaries: Vec<String> = labels[..summary_count].to_vec();
+                let to_delete_summary =
+                    Select::new("Select session to delete:", delete_summaries.clone()).prompt()?;
+                let idx = delete_summaries
+                    .iter()
+                    .position(|s| s == &to_delete_summary)
+                    .unwrap();
+                let del_id = ids[idx];
+                if Confirm::new(&format!("Delete session '{}' ?", to_delete_summary))
+                    .with_default(false)
+                    .prompt()?
+                {
+                    session_manager.delete_session(del_id)?;
+                    println!("Deleted session: {}", to_delete_summary);
                 }
                 continue;
             } else {
