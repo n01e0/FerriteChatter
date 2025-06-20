@@ -119,8 +119,7 @@ async fn main() -> Result<()> {
     let config_base = env::var("XDG_CONFIG_HOME").unwrap_or_else(|_| format!("{}/.config", home));
     let ferrite_dir = Path::new(&config_base).join("ferrite");
     fs::create_dir_all(&ferrite_dir)?;
-    let db_path = ferrite_dir.join("session.db").to_string_lossy().to_string();
-    let session_manager = SessionManager::new(&db_path)?;
+    let session_manager = SessionManager::new()?;
 
     let existing_sessions = session_manager.list_sessions()?;
     let mut session_id: i64;
