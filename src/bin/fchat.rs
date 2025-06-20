@@ -189,8 +189,8 @@ async fn main() -> Result<()> {
                     .collect();
                 break session_manager.create_session(&name, &session_msgs)?;
             }
-            // Build labels and ids with summary preview
-            let mut labels = Vec::new();
+            // Build option list for session selection
+            let mut summaries = Vec::new();
             let mut ids = Vec::new();
             for (id, _name, summary_opt) in existing.iter() {
                 // Skip sessions that contain only system messages
@@ -215,12 +215,14 @@ async fn main() -> Result<()> {
                     s_new
                 };
                 // Use summary as the selection label
-                labels.push(summary.clone());
+                summaries.push(summary.clone());
                 ids.push(*id);
             }
-            labels.push("New session".to_string());
-            labels.push("Delete session".to_string());
-            let selection = Select::new("Choose a session:", labels.clone()).prompt()?;
+            let mut options = Vec::new();
+            options.push("New session".to_string());
+            options.extend(summaries.clone());
+            options.push("Delete session".to_string());
+            let selection = Select::new("Choose a session:", options.clone()).prompt()?;
             if selection == "New session" {
                 let name = String::new();
                 messages.push(ChatCompletionMessage {
@@ -251,12 +253,9 @@ async fn main() -> Result<()> {
                     .collect();
                 break session_manager.create_session(&name, &session_msgs)?;
             } else if selection == "Delete session" {
-                // Select session to delete by summary preview
-                let summary_count = ids.len();
-                let delete_summaries: Vec<String> = labels[..summary_count].to_vec();
                 let to_delete_summary =
-                    Select::new("Select session to delete:", delete_summaries.clone()).prompt()?;
-                let idx = delete_summaries
+                    Select::new("Select session to delete:", summaries.clone()).prompt()?;
+                let idx = summaries
                     .iter()
                     .position(|s| s == &to_delete_summary)
                     .unwrap();
@@ -270,8 +269,7 @@ async fn main() -> Result<()> {
                 }
                 continue;
             } else {
-                // Switch to selected session
-                let idx = labels.iter().position(|l| l == &selection).unwrap();
+                let idx = summaries.iter().position(|s| s == &selection).unwrap();
                 break ids[idx];
             }
         };
