@@ -56,6 +56,14 @@ async fn generate_summary(
     Ok(summary)
 }
 
+fn session_scorer(input: &str, option: &String, string_value: &str, index: usize) -> Option<i64> {
+    if option == "New session" {
+        Some(i64::MAX)
+    } else {
+        Select::<String>::DEFAULT_SCORER(input, option, string_value, index)
+    }
+}
+
 const SEED_PROMPT: &'static str = r#"
 You are an engineer's assistant.
 The user can reset the current state of the chat by inputting '/reset'.
@@ -222,7 +230,9 @@ async fn main() -> Result<()> {
             options.push("New session".to_string());
             options.extend(summaries.clone());
             options.push("Delete session".to_string());
-            let selection = Select::new("Choose a session:", options.clone()).prompt()?;
+            let selection = Select::new("Choose a session:", options.clone())
+                .with_scorer(&session_scorer)
+                .prompt()?;
             if selection == "New session" {
                 let name = String::new();
                 messages.push(ChatCompletionMessage {
