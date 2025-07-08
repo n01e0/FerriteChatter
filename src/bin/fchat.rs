@@ -26,9 +26,7 @@ async fn generate_summary(
     // System prompt for Japanese summary (skip the first session system message below)
     messages.push(ChatCompletionMessage {
         role: ChatCompletionMessageRole::System,
-        content: Some(
-            "次の会話内容を一文で簡潔に日本語で要約してください：".to_string(),
-        ),
+        content: Some("次の会話内容を一文で簡潔に日本語で要約してください：".to_string()),
         ..Default::default()
     });
     // Include only user and assistant messages, skip session's first System prompt
