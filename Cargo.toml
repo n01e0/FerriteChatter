@@ -29,7 +29,7 @@ openai = "1.1.1"
 serde = { version = "1.0.219", features = ["derive"] }
 serde_yaml = "0.9.34"
 tia = "1.0.3"
-tokio = { version="1.45.1", features=["full"] }
+tokio = { version="1.46.1", features=["full"] }
 ferrite_model_gen = "0.3.0"
 rand = { version = "0.8", features = ["std"] }
 serde_json = "1.0"
