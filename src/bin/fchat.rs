@@ -1,5 +1,4 @@
 use anyhow::{Context, Result};
-use base64;
 use clap::Parser;
 use inquire::{Confirm, Editor, Select, Text};
 use openai::{
@@ -12,7 +11,7 @@ use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::{env, fs};
 use viuer::{print_from_file, Config as ViuerConfig};
-use FerriteChatter::image::{edit_images, generate_images, ImageData};
+use FerriteChatter::image::{edit_images, generate_images};
 use FerriteChatter::{
     config::Config,
     core::{ask, Model, DEFAULT_MODEL},
@@ -66,15 +65,7 @@ async fn generate_summary(
     Ok(summary)
 }
 
-fn session_scorer(input: &str, option: &String, string_value: &str, index: usize) -> Option<i64> {
-    if option == "New session" {
-        Some(i64::MAX)
-    } else {
-        Select::<String>::DEFAULT_SCORER(input, option, string_value, index)
-    }
-}
-
-const SEED_PROMPT: &'static str = r#"
+const SEED_PROMPT: &str = r#"
 You are an engineer's assistant.
 The user can reset the current state of the chat by inputting '/reset'.
 The user can activate the editor by entering 'v', allowing them to input multiple lines of prompts.
@@ -134,7 +125,7 @@ async fn main() -> Result<()> {
 
     // Use XDG_CONFIG_HOME or fallback to $HOME/.config for ferrite data
     let home = env::var("HOME").with_context(|| "Where is the HOME?")?;
-    let config_base = env::var("XDG_CONFIG_HOME").unwrap_or_else(|_| format!("{}/.config", home));
+    let config_base = env::var("XDG_CONFIG_HOME").unwrap_or_else(|_| format!("{home}/.config"));
     let ferrite_dir = Path::new(&config_base).join("ferrite");
     fs::create_dir_all(&ferrite_dir)?;
     let session_manager = SessionManager::new()?;
@@ -235,7 +226,7 @@ async fn main() -> Result<()> {
                     .filter(|m| m.role != ChatCompletionMessageRole::System)
                     .filter_map(|m| {
                         if m.role == ChatCompletionMessageRole::Assistant {
-                            m.content.map(|c| format!("Assistant:{}", c))
+                            m.content.map(|c| format!("Assistant:{c}"))
                         } else {
                             m.content
                         }
@@ -310,7 +301,7 @@ async fn main() -> Result<()> {
             }
             "/history" => {
                 // Print current session history
-                for (_, m) in messages.iter().enumerate() {
+                for m in messages.iter() {
                     let role_str = match m.role {
                         ChatCompletionMessageRole::System => "SYSTEM",
                         ChatCompletionMessageRole::User => "USER",
@@ -318,7 +309,7 @@ async fn main() -> Result<()> {
                         _ => "USER",
                     };
                     if let Some(content) = &m.content {
-                        println!("[{}] {}", role_str, content);
+                        println!("[{role_str}] {content}");
                     }
                 }
                 continue;
@@ -356,7 +347,7 @@ async fn main() -> Result<()> {
                             }
                         }
                     }
-                    Err(e) => println!("Image generation error: {}", e),
+                    Err(e) => println!("Image generation error: {e}"),
                 }
                 continue;
             }
@@ -393,7 +384,7 @@ async fn main() -> Result<()> {
                                 }
                             }
                         }
-                        Err(e) => println!("Image edit error: {}", e),
+                        Err(e) => println!("Image edit error: {e}"),
                     }
                 } else {
                     println!("No image available for editing. Use /img first.");

@@ -24,11 +24,6 @@ pub struct ImageData {
     pub b64_json: Option<String>,
 }
 
-#[derive(Deserialize)]
-struct ImageResponse {
-    data: Vec<ImageData>,
-}
-
 /// Generate new images
 pub async fn generate_images(
     credentials: Credentials,
@@ -59,7 +54,7 @@ pub async fn generate_images(
         bail!("OpenAI API error ({})\n{}", status, body);
     }
     let v: Value =
-        serde_json::from_str(&body).with_context(|| format!("Invalid JSON response:\n{}", body))?;
+        serde_json::from_str(&body).with_context(|| format!("Invalid JSON response:\n{body}"))?;
     if let Some(err) = v.get("error") {
         let msg = err
             .get("message")
@@ -69,13 +64,14 @@ pub async fn generate_images(
     }
     let data = v
         .get("data")
-        .with_context(|| format!("Missing 'data':\n{}", body))?;
+        .with_context(|| format!("Missing 'data':\n{body}"))?;
     let items: Vec<ImageData> = serde_json::from_value(data.clone())
-        .with_context(|| format!("Failed to parse 'data':\n{:?}", data))?;
+        .with_context(|| format!("Failed to parse 'data':\n{data:?}"))?;
     Ok(items)
 }
 
 /// Edit existing images (GPT Image models)
+#[allow(clippy::too_many_arguments)]
 pub async fn edit_images(
     credentials: Credentials,
     model: &str,
@@ -98,7 +94,7 @@ pub async fn edit_images(
     }
     // image file
     let img_bytes = fs::read(image_path)
-        .with_context(|| format!("Failed to read image file {:?}", image_path))?;
+        .with_context(|| format!("Failed to read image file {image_path:?}"))?;
     let img_name = image_path
         .file_name()
         .and_then(|s| s.to_str())
@@ -108,7 +104,7 @@ pub async fn edit_images(
     // optional mask file
     if let Some(mask) = mask_path {
         let mask_bytes =
-            fs::read(mask).with_context(|| format!("Failed to read mask file {:?}", mask))?;
+            fs::read(mask).with_context(|| format!("Failed to read mask file {mask:?}"))?;
         let mask_name = mask
             .file_name()
             .and_then(|s| s.to_str())
@@ -128,7 +124,7 @@ pub async fn edit_images(
         bail!("OpenAI API error ({})\n{}", status, body);
     }
     let v: Value =
-        serde_json::from_str(&body).with_context(|| format!("Invalid JSON response:\n{}", body))?;
+        serde_json::from_str(&body).with_context(|| format!("Invalid JSON response:\n{body}"))?;
     if let Some(err) = v.get("error") {
         let msg = err
             .get("message")
@@ -138,8 +134,8 @@ pub async fn edit_images(
     }
     let data = v
         .get("data")
-        .with_context(|| format!("Missing 'data':\n{}", body))?;
+        .with_context(|| format!("Missing 'data':\n{body}"))?;
     let items: Vec<ImageData> = serde_json::from_value(data.clone())
-        .with_context(|| format!("Failed to parse 'data':\n{:?}", data))?;
+        .with_context(|| format!("Failed to parse 'data':\n{data:?}"))?;
     Ok(items)
 }

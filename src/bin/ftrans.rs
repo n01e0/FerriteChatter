@@ -60,7 +60,7 @@ async fn main() -> Result<()> {
     };
 
     let mut messages = vec![ChatCompletionMessage {
-        role: role,
+        role,
         content: Some(args.general.unwrap_or(String::from(
             "これから渡す文章が、日本語の場合は英語に翻訳し、英語など日本語以外の場合は日本語に翻訳してください。",
         ))),
