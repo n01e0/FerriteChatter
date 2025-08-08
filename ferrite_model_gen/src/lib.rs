@@ -38,6 +38,8 @@ pub fn generate_models(_input: TokenStream) -> TokenStream {
         .map(|model| serde_json::from_value(model.clone()).expect("Failed to deserialize model"))
         .filter(|m: &Model| m.id.contains("gpt") || m.id.contains("o1") || m.id.contains("o3") || m.id.contains("o4"))
         .filter(|m| !m.id.contains("audio") && !m.id.contains("realtime")) // remove audio models
+        .filter(|m| !m.id.contains("gpt-5") || m.id == "gpt-5-chat-latest") // gpt-5-chat
+        .filter(|m| !m.id.starts_with("gpt-image-")) // ignore gpt-image-*
         .collect();
 
     // 各モデルに対応するenumとimplを生成
