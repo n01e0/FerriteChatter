@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use rand::{distributions::Alphanumeric, Rng};
+use rand::distr::{Alphanumeric, SampleString};
 use serde::{Deserialize, Serialize};
 use serde_json;
 use std::env;
@@ -87,9 +87,9 @@ impl SessionManager {
         let existing_names: Vec<String> = sessions.iter().map(|(_, n, _)| n.clone()).collect();
         let mut final_name = name.to_string();
         if existing_names.contains(&final_name) {
-            let mut rng = rand::thread_rng();
+            let mut rng = rand::rng();
             loop {
-                let suffix: String = (0..6).map(|_| rng.sample(Alphanumeric) as char).collect();
+                let suffix: String = Alphanumeric.sample_string(&mut rng, 6);
                 let candidate = format!("{name}-{suffix}");
                 if !existing_names.contains(&candidate) {
                     final_name = candidate;
