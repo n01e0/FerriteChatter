@@ -20,6 +20,23 @@ $ fchat
 $ fask
 
 # 日英・英日翻訳 パイプまたは引数からの入力
+```bash
+# 画像生成
+# 引数からプロンプト指定
+# (デフォルトサイズは1024x1024、他に1024x1792,1792x1024を指定可能)
+# DALL·Eモデル指定
+$ fimg -m dalle-2 -n 2 -s 1024x1024 "a futuristic cityscape"
+# GPT Imageモデル指定
+$ fimg -m gpt-image-1 -n 3 "a surreal landscape"
+# パイプ入力からプロンプト指定（モデル選択: 対話式）
+echo "cute puppy" | fimg
+
+# 画像編集（GPT Image系のみ）
+$ fimg -m gpt-image-1 -i path/to/image.png -n 1 "add red hat"
+# マスクを指定して特定領域を編集
+$ fimg -m gpt-image-1 -i path/to/image.png -M path/to/mask.png -n 1 "change background to sunset"
+
+# 基本的に共通のオプション
 $ ftrans
 
 # 基本的に共通のオプション
@@ -216,4 +233,3 @@ tnoremap <Esc> <C-\><C-n>
 openai_api_key: "XXXX"
 default_model: "gpt-4o"
 ```
-

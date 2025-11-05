@@ -5,11 +5,14 @@ use openai::{
     chat::{ChatCompletion, ChatCompletionDelta, ChatCompletionMessage, ChatCompletionMessageRole},
     Credentials,
 };
-use std::env;
-use std::fs;
+use std::{env, fs};
 use std::fs::File;
 use std::io::{Read, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use reqwest::Client;
+use base64;
+use viuer::{Config as ViuerConfig, print_from_file};
+use FerriteChatter::image::{generate_images, edit_images, ImageData};
 use FerriteChatter::{
     config::Config,
     core::{ask, Model, DEFAULT_MODEL},
@@ -154,6 +157,10 @@ async fn main() -> Result<()> {
         });
     }
     let mut initial_state = messages.clone();
+    // HTTP client for image retrieval
+    let client_http = Client::new();
+    // Last generated image path for editing
+    let mut last_image_path: Option<PathBuf> = None;
 
     loop {
         let input = Text::new("").prompt()?;
@@ -318,6 +325,76 @@ async fn main() -> Result<()> {
             }
             "" => {
                 println!("Empty message received. :(");
+            }
+            cmd if cmd.starts_with("/img ") => {
+                // Image generation
+                let prompt_img = cmd.trim_start_matches("/img").trim();
+                match generate_images(
+                    credentials.clone(),
+                    "dall-e-2",
+                    prompt_img,
+                    1,
+                    "1024x1024",
+                    Some("url"),
+                ).await {
+                    Ok(images) => {
+                        let cfg = ViuerConfig::default();
+                        for img in images {
+                            if let Some(url) = img.url {
+                                if let Ok(resp) = client_http.get(&url).send().await {
+                                    if let Ok(bytes) = resp.bytes().await {
+                                        // save to temp file
+                                        let tmp = env::temp_dir().join("fchat_image.png");
+                                        let _ = fs::write(&tmp, &bytes);
+                                        // display via Sixel
+                                        let _ = print_from_file(&tmp, &cfg);
+                                        last_image_path = Some(tmp);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Err(e) => println!("Image generation error: {}", e),
+                }
+                continue;
+            }
+            cmd if cmd.starts_with("/edit ") => {
+                // Image editing
+                let prompt_edit = cmd.trim_start_matches("/edit").trim();
+                if let Some(ref img_path) = last_image_path {
+                    match edit_images(
+                        credentials.clone(),
+                        "gpt-image-1",
+                        prompt_edit,
+                        1,
+                        "1024x1024",
+                        None,
+                        img_path,
+                        None,
+                    ).await {
+                        Ok(images) => {
+                            let cfg = ViuerConfig::default();
+                        for img in images {
+                            if let Some(url) = img.url {
+                                if let Ok(resp) = client_http.get(&url).send().await {
+                                    if let Ok(bytes) = resp.bytes().await {
+                                        // save to temp file
+                                        let tmp = env::temp_dir().join("fchat_image.png");
+                                        let _ = fs::write(&tmp, &bytes);
+                                        // display via Sixel
+                                        let _ = print_from_file(&tmp, &cfg);
+                                        last_image_path = Some(tmp);
+                                    }
+                                }
+                            }
+                        }
+                        }
+                        Err(e) => println!("Image edit error: {}", e),
+                    }
+                } else {
+                    println!("No image available for editing. Use /img first.");
+                }
+                continue;
             }
             _ => {
                 messages.push(ChatCompletionMessage {
