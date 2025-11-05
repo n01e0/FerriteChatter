@@ -28,7 +28,7 @@ impl Config {
     pub fn load() -> Result<Self> {
         // Determine configuration directory: $XDG_CONFIG_HOME/ferrite or $HOME/.config/ferrite
         let home = env::var("HOME").with_context(|| "Where is the HOME?")?;
-        let base = env::var("XDG_CONFIG_HOME").unwrap_or_else(|_| format!("{}/.config", home));
+        let base = env::var("XDG_CONFIG_HOME").unwrap_or_else(|_| format!("{home}/.config"));
         let conf_dir = Path::new(&base).join("ferrite");
         create_dir_all(&conf_dir)
             .with_context(|| format!("Can't create config directory {:?}", &conf_dir))?;

@@ -18,10 +18,10 @@ pub async fn ask(mut stream: Receiver<ChatCompletionDelta>) -> Result<ChatComple
     while let Some(delta) = stream.recv().await {
         let choice = &delta.choices[0];
         if let Some(content) = &choice.delta.content {
-            print!("{}", content);
+            print!("{content}");
         }
-        if let Some(_) = &choice.finish_reason {
-            println!("");
+        if choice.finish_reason.is_some() {
+            println!();
         }
         stdout().flush()?;
 

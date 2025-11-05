@@ -1,21 +1,23 @@
 // src/bin/fimg.rs
 //! Generate images via OpenAI Images API
-use clap::Parser;
 use anyhow::{bail, Context, Result};
-use inquire::{Select, Confirm, Text};
-use FerriteChatter::config::Config;
+use base64::{engine::general_purpose, Engine as _};
+use clap::Parser;
+use inquire::{Confirm, Select, Text};
 use openai::Credentials;
-use FerriteChatter::image::{generate_images, edit_images};
-use serde_json::Value;
-use reqwest::{Client, multipart::{Form, Part}};
-use std::fs;
+use reqwest::{
+    multipart::{Form, Part},
+    Client,
+};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::env;
-use std::io::{self, Read, IsTerminal};
-use std::path::{PathBuf, Path};
-use std::ffi::OsStr;
-use viuer::{Config as ViuerConfig, print_from_file};
-use base64;
+use std::fs;
+use std::io::{self, IsTerminal, Read};
+use std::path::PathBuf;
+use viuer::{print_from_file, Config as ViuerConfig};
+use FerriteChatter::config::Config;
+use FerriteChatter::image::edit_images;
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about = "Generate images with OpenAI")]
@@ -68,30 +70,22 @@ struct ImageData {
     b64_json: Option<String>,
 }
 
-#[derive(Deserialize)]
-struct ImageResponse {
-    data: Vec<ImageData>,
-}
-
 #[tokio::main]
 async fn main() -> Result<()> {
     let args = Args::parse();
     let config = Config::load()?;
 
-    let key = args.key.unwrap_or(
-        config.get_openai_api_key().clone().unwrap_or(
-            env::var("OPENAI_API_KEY")
-                .context("API key not set via --key or OPENAI_API_KEY")?,
-        ),
-    );
-    let base_url = args.base_url.unwrap_or(
-        config.get_openai_base_url().clone().unwrap_or(
+    let key = args
+        .key
+        .unwrap_or(config.get_openai_api_key().clone().unwrap_or(
+            env::var("OPENAI_API_KEY").context("API key not set via --key or OPENAI_API_KEY")?,
+        ));
+    let base_url = args
+        .base_url
+        .unwrap_or(config.get_openai_base_url().clone().unwrap_or(
             env::var("OPENAI_BASE_URL").unwrap_or_else(|_| "https://api.openai.com/v1".to_string()),
-        ),
-    );
+        ));
     let credentials = Credentials::new(key, base_url);
-    // Determine if editing existing image
-    let editing = args.image.is_some();
 
     // Read prompt from stdin or CLI
     let mut stdin = io::stdin();
@@ -100,7 +94,9 @@ async fn main() -> Result<()> {
         let _ = stdin.read_to_string(&mut s);
         s.trim_end().to_string()
     } else {
-        args.prompt.clone().context("Prompt must be provided as argument or via pipe")?
+        args.prompt
+            .clone()
+            .context("Prompt must be provided as argument or via pipe")?
     };
 
     let client = Client::new();
@@ -124,7 +120,11 @@ async fn main() -> Result<()> {
         // Filter DALL-E models
         let mut choices: Vec<String> = data
             .iter()
-            .filter_map(|m| m.get("id").and_then(|id| id.as_str()).map(|s| s.to_string()))
+            .filter_map(|m| {
+                m.get("id")
+                    .and_then(|id| id.as_str())
+                    .map(|s| s.to_string())
+            })
             // include DALL-E and GPT Image models
             .filter(|id| id.contains("dall") || id.starts_with("gpt-image"))
             .collect();
@@ -156,19 +156,30 @@ async fn main() -> Result<()> {
         // Attach image file
         let img_path = args.image.as_ref().unwrap();
         let img_bytes = fs::read(img_path)
-            .with_context(|| format!("Failed to read image file {:?}", img_path))?;
-        let img_part = Part::bytes(img_bytes)
-            .file_name(img_path.file_name().and_then(|s| s.to_str()).unwrap_or("image.png").to_string());
+            .with_context(|| format!("Failed to read image file {img_path:?}"))?;
+        let img_part = Part::bytes(img_bytes).file_name(
+            img_path
+                .file_name()
+                .and_then(|s| s.to_str())
+                .unwrap_or("image.png")
+                .to_string(),
+        );
         form = form.part("image", img_part);
         if let Some(mask_path) = &args.mask {
             // Attach mask file
             let mask_bytes = fs::read(mask_path)
-                .with_context(|| format!("Failed to read mask file {:?}", mask_path))?;
-            let mask_part = Part::bytes(mask_bytes)
-                .file_name(mask_path.file_name().and_then(|s| s.to_str()).unwrap_or("mask.png").to_string());
+                .with_context(|| format!("Failed to read mask file {mask_path:?}"))?;
+            let mask_part = Part::bytes(mask_bytes).file_name(
+                mask_path
+                    .file_name()
+                    .and_then(|s| s.to_str())
+                    .unwrap_or("mask.png")
+                    .to_string(),
+            );
             form = form.part("mask", mask_part);
         }
-        client.post(&edit_url)
+        client
+            .post(&edit_url)
             .header("Authorization", format!("Bearer {}", credentials.api_key()))
             .multipart(form)
             .send()
@@ -183,7 +194,8 @@ async fn main() -> Result<()> {
             size: args.size.clone(),
             response_format: resp_fmt,
         };
-        client.post(&gen_url)
+        client
+            .post(&gen_url)
             .header("Authorization", format!("Bearer {}", credentials.api_key()))
             .json(&request)
             .send()
@@ -198,8 +210,8 @@ async fn main() -> Result<()> {
     }
     // Interactive editing for GPT Image models
     // Parse JSON response
-    let v: Value = serde_json::from_str(&body)
-        .with_context(|| format!("Invalid JSON response: {}", body))?;
+    let v: Value =
+        serde_json::from_str(&body).with_context(|| format!("Invalid JSON response: {body}"))?;
     // Handle API error object
     if let Some(err) = v.get("error") {
         let msg = err
@@ -209,10 +221,11 @@ async fn main() -> Result<()> {
         bail!("OpenAI Images API error: {}", msg);
     }
     // Extract 'data' array
-    let data = v.get("data")
-        .with_context(|| format!("Missing 'data' in response: {}", body))?;
+    let data = v
+        .get("data")
+        .with_context(|| format!("Missing 'data' in response: {body}"))?;
     let items: Vec<ImageData> = serde_json::from_value(data.clone())
-        .with_context(|| format!("Failed to parse 'data' field: {}", data))?;
+        .with_context(|| format!("Failed to parse 'data' field: {data}"))?;
     // Save and preview images
     let cfg = ViuerConfig::default();
     let mut saved_paths: Vec<PathBuf> = Vec::new();
@@ -221,7 +234,7 @@ async fn main() -> Result<()> {
         let bytes = if let Some(u) = &item.url {
             client.get(u).send().await?.bytes().await?.to_vec()
         } else if let Some(b64) = &item.b64_json {
-            base64::decode(b64)?
+            general_purpose::STANDARD.decode(b64)?
         } else {
             continue;
         };
@@ -231,23 +244,22 @@ async fn main() -> Result<()> {
         let path = if items.len() > 1 {
             let stem = base.file_stem().and_then(|s| s.to_str()).unwrap_or("fimg");
             let ext = base.extension().and_then(|s| s.to_str()).unwrap_or("png");
-            PathBuf::from(format!("{}_{}.{}", stem, idx+1, ext))
+            PathBuf::from(format!("{}_{}.{}", stem, idx + 1, ext))
         } else {
             base.clone()
         };
         // write file
-        fs::write(&path, &bytes)
-            .with_context(|| format!("Failed to write image to {:?}", path))?;
+        fs::write(&path, &bytes).with_context(|| format!("Failed to write image to {path:?}"))?;
         // display via Sixel
         let _ = print_from_file(&path, &cfg);
-        println!("Saved to {:?}", path);
+        println!("Saved to {path:?}");
         saved_paths.push(path.clone());
     }
     // Interactive editing for GPT Image models
     // Interactive editing for GPT Image models (repeatable)
     if model.starts_with("gpt-image") && !saved_paths.is_empty() {
         // Use the first generated image as the base
-        let mut current_path = saved_paths[0].clone();
+        let current_path = saved_paths[0].clone();
         loop {
             let do_edit = Confirm::new("Edit generated image again?")
                 .with_default(false)
@@ -256,8 +268,7 @@ async fn main() -> Result<()> {
                 break;
             }
             // Ask for edit prompt
-            let edit_prompt = Text::new("Edit prompt:")
-                .prompt()?;
+            let edit_prompt = Text::new("Edit prompt:").prompt()?;
             // Call edit API
             // Call edit API, handle possible safety block
             match edit_images(
@@ -269,24 +280,27 @@ async fn main() -> Result<()> {
                 None,
                 &current_path,
                 args.mask.as_deref(),
-            ).await {
+            )
+            .await
+            {
                 Ok(mut edits) => {
                     if let Some(img) = edits.pop() {
                         // Get bytes
                         let bytes = if let Some(u) = img.url {
                             client.get(&u).send().await?.bytes().await?.to_vec()
                         } else if let Some(b64) = img.b64_json {
-                            base64::decode(&b64)?
+                            general_purpose::STANDARD.decode(&b64)?
                         } else {
                             println!("No image data returned");
                             continue;
                         };
                         // Overwrite file
-                        fs::write(&current_path, &bytes)
-                            .with_context(|| format!("Failed to write edited image to {:?}", current_path))?;
+                        fs::write(&current_path, &bytes).with_context(|| {
+                            format!("Failed to write edited image to {current_path:?}")
+                        })?;
                         // Preview
                         let _ = print_from_file(&current_path, &cfg);
-                        println!("Edited image saved to {:?}", current_path);
+                        println!("Edited image saved to {current_path:?}");
                     } else {
                         println!("No edited image returned");
                     }
@@ -296,7 +310,7 @@ async fn main() -> Result<()> {
                     if msg.contains("safety_violations") {
                         println!("編集が安全システムによって拒否されました。別のプロンプトを試してください。");
                     } else {
-                        println!("Error during edit: {}", msg);
+                        println!("Error during edit: {msg}");
                     }
                     break;
                 }

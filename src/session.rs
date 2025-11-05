@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use rand::{distributions::Alphanumeric, Rng};
+use rand::distr::{Alphanumeric, SampleString};
 use serde::{Deserialize, Serialize};
 use serde_json;
 use std::env;
@@ -28,12 +28,10 @@ impl SessionManager {
     /// Initialize the session manager, creating the sessions directory if needed.
     pub fn new() -> Result<Self> {
         let home = env::var("HOME").context("HOME environment variable not set")?;
-        let config_base =
-            env::var("XDG_CONFIG_HOME").unwrap_or_else(|_| format!("{}/.config", home));
+        let config_base = env::var("XDG_CONFIG_HOME").unwrap_or_else(|_| format!("{home}/.config"));
         let sessions_dir = Path::new(&config_base).join("ferrite").join("sessions");
-        fs::create_dir_all(&sessions_dir).with_context(|| {
-            format!("Failed to create sessions directory at {:?}", sessions_dir)
-        })?;
+        fs::create_dir_all(&sessions_dir)
+            .with_context(|| format!("Failed to create sessions directory at {sessions_dir:?}"))?;
         Ok(SessionManager { sessions_dir })
     }
 
@@ -58,15 +56,15 @@ impl SessionManager {
                 .and_then(|s| s.to_str())
                 .context("Invalid session file name")?;
             let id: i64 = file_stem.parse().with_context(|| {
-                format!("Failed to parse session id from file name {}", file_stem)
+                format!("Failed to parse session id from file name {file_stem}")
             })?;
             let mut file = fs::File::open(&path)
-                .with_context(|| format!("Failed to open session file {:?}", path))?;
+                .with_context(|| format!("Failed to open session file {path:?}"))?;
             let mut content = String::new();
             file.read_to_string(&mut content)
-                .with_context(|| format!("Failed to read session file {:?}", path))?;
+                .with_context(|| format!("Failed to read session file {path:?}"))?;
             let session_file: SessionFile = serde_json::from_str(&content)
-                .with_context(|| format!("Failed to parse JSON in {:?}", path))?;
+                .with_context(|| format!("Failed to parse JSON in {path:?}"))?;
             sessions.push((id, session_file.name, session_file.summary));
         }
         sessions.sort_by_key(|(id, _, _)| *id);
@@ -75,11 +73,11 @@ impl SessionManager {
 
     /// Load messages for a session by id.
     pub fn load_session(&self, id: i64) -> Result<Vec<SessionMessage>> {
-        let path = self.sessions_dir.join(format!("{}.json", id));
+        let path = self.sessions_dir.join(format!("{id}.json"));
         let content = fs::read_to_string(&path)
-            .with_context(|| format!("Failed to read session file {:?}", path))?;
+            .with_context(|| format!("Failed to read session file {path:?}"))?;
         let session_file: SessionFile = serde_json::from_str(&content)
-            .with_context(|| format!("Failed to parse JSON in {:?}", path))?;
+            .with_context(|| format!("Failed to parse JSON in {path:?}"))?;
         Ok(session_file.messages)
     }
 
@@ -89,10 +87,10 @@ impl SessionManager {
         let existing_names: Vec<String> = sessions.iter().map(|(_, n, _)| n.clone()).collect();
         let mut final_name = name.to_string();
         if existing_names.contains(&final_name) {
-            let mut rng = rand::thread_rng();
+            let mut rng = rand::rng();
             loop {
-                let suffix: String = (0..6).map(|_| rng.sample(Alphanumeric) as char).collect();
-                let candidate = format!("{}-{}", name, suffix);
+                let suffix: String = Alphanumeric.sample_string(&mut rng, 6);
+                let candidate = format!("{name}-{suffix}");
                 if !existing_names.contains(&candidate) {
                     final_name = candidate;
                     break;
@@ -107,46 +105,46 @@ impl SessionManager {
         };
         let serialized = serde_json::to_string(&session_file)
             .with_context(|| "Failed to serialize session to JSON")?;
-        let path = self.sessions_dir.join(format!("{}.json", new_id));
+        let path = self.sessions_dir.join(format!("{new_id}.json"));
         fs::write(&path, serialized)
-            .with_context(|| format!("Failed to write session file {:?}", path))?;
+            .with_context(|| format!("Failed to write session file {path:?}"))?;
         Ok(new_id)
     }
 
     /// Update the messages for an existing session.
     pub fn update_session(&self, id: i64, messages: &[SessionMessage]) -> Result<()> {
-        let path = self.sessions_dir.join(format!("{}.json", id));
+        let path = self.sessions_dir.join(format!("{id}.json"));
         let content = fs::read_to_string(&path)
-            .with_context(|| format!("Failed to read session file {:?}", path))?;
+            .with_context(|| format!("Failed to read session file {path:?}"))?;
         let mut session_file: SessionFile = serde_json::from_str(&content)
-            .with_context(|| format!("Failed to parse JSON in {:?}", path))?;
+            .with_context(|| format!("Failed to parse JSON in {path:?}"))?;
         session_file.messages = messages.to_vec();
         let serialized = serde_json::to_string(&session_file)
             .with_context(|| "Failed to serialize session to JSON")?;
         fs::write(&path, serialized)
-            .with_context(|| format!("Failed to write session file {:?}", path))?;
+            .with_context(|| format!("Failed to write session file {path:?}"))?;
         Ok(())
     }
 
     /// Update the summary for an existing session.
     pub fn update_summary(&self, id: i64, summary: &str) -> Result<()> {
-        let path = self.sessions_dir.join(format!("{}.json", id));
+        let path = self.sessions_dir.join(format!("{id}.json"));
         let content = fs::read_to_string(&path)
-            .with_context(|| format!("Failed to read session file {:?}", path))?;
+            .with_context(|| format!("Failed to read session file {path:?}"))?;
         let mut session_file: SessionFile = serde_json::from_str(&content)
-            .with_context(|| format!("Failed to parse JSON in {:?}", path))?;
+            .with_context(|| format!("Failed to parse JSON in {path:?}"))?;
         session_file.summary = Some(summary.to_string());
         let serialized = serde_json::to_string(&session_file)
             .with_context(|| "Failed to serialize session to JSON")?;
         fs::write(&path, serialized)
-            .with_context(|| format!("Failed to write session file {:?}", path))?;
+            .with_context(|| format!("Failed to write session file {path:?}"))?;
         Ok(())
     }
     /// Delete a session by id.
     pub fn delete_session(&self, id: i64) -> Result<()> {
-        let path = self.sessions_dir.join(format!("{}.json", id));
+        let path = self.sessions_dir.join(format!("{id}.json"));
         fs::remove_file(&path)
-            .with_context(|| format!("Failed to delete session file {:?}", path))?;
+            .with_context(|| format!("Failed to delete session file {path:?}"))?;
         Ok(())
     }
 }

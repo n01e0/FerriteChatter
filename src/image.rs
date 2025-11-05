@@ -1,6 +1,9 @@
 use anyhow::{bail, Context, Result};
 use openai::Credentials;
-use reqwest::{Client, multipart::{Form, Part}};
+use reqwest::{
+    multipart::{Form, Part},
+    Client,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{fs, path::Path};
@@ -19,11 +22,6 @@ struct GenerateRequest {
 pub struct ImageData {
     pub url: Option<String>,
     pub b64_json: Option<String>,
-}
-
-#[derive(Deserialize)]
-struct ImageResponse {
-    data: Vec<ImageData>,
 }
 
 /// Generate new images
@@ -55,19 +53,25 @@ pub async fn generate_images(
     if !status.is_success() {
         bail!("OpenAI API error ({})\n{}", status, body);
     }
-    let v: Value = serde_json::from_str(&body)
-        .with_context(|| format!("Invalid JSON response:\n{}", body))?;
+    let v: Value =
+        serde_json::from_str(&body).with_context(|| format!("Invalid JSON response:\n{body}"))?;
     if let Some(err) = v.get("error") {
-        let msg = err.get("message").and_then(|m| m.as_str()).unwrap_or("Unknown error");
+        let msg = err
+            .get("message")
+            .and_then(|m| m.as_str())
+            .unwrap_or("Unknown error");
         bail!("OpenAI Images API error: {}", msg);
     }
-    let data = v.get("data").with_context(|| format!("Missing 'data':\n{}", body))?;
+    let data = v
+        .get("data")
+        .with_context(|| format!("Missing 'data':\n{body}"))?;
     let items: Vec<ImageData> = serde_json::from_value(data.clone())
-        .with_context(|| format!("Failed to parse 'data':\n{:?}", data))?;
+        .with_context(|| format!("Failed to parse 'data':\n{data:?}"))?;
     Ok(items)
 }
 
 /// Edit existing images (GPT Image models)
+#[allow(clippy::too_many_arguments)]
 pub async fn edit_images(
     credentials: Credentials,
     model: &str,
@@ -90,15 +94,21 @@ pub async fn edit_images(
     }
     // image file
     let img_bytes = fs::read(image_path)
-        .with_context(|| format!("Failed to read image file {:?}", image_path))?;
-    let img_name = image_path.file_name().and_then(|s| s.to_str()).unwrap_or("image.png");
+        .with_context(|| format!("Failed to read image file {image_path:?}"))?;
+    let img_name = image_path
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or("image.png");
     let img_part = Part::bytes(img_bytes).file_name(img_name.to_string());
     form = form.part("image", img_part);
     // optional mask file
     if let Some(mask) = mask_path {
-        let mask_bytes = fs::read(mask)
-            .with_context(|| format!("Failed to read mask file {:?}", mask))?;
-        let mask_name = mask.file_name().and_then(|s| s.to_str()).unwrap_or("mask.png");
+        let mask_bytes =
+            fs::read(mask).with_context(|| format!("Failed to read mask file {mask:?}"))?;
+        let mask_name = mask
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or("mask.png");
         let mask_part = Part::bytes(mask_bytes).file_name(mask_name.to_string());
         form = form.part("mask", mask_part);
     }
@@ -113,14 +123,19 @@ pub async fn edit_images(
     if !status.is_success() {
         bail!("OpenAI API error ({})\n{}", status, body);
     }
-    let v: Value = serde_json::from_str(&body)
-        .with_context(|| format!("Invalid JSON response:\n{}", body))?;
+    let v: Value =
+        serde_json::from_str(&body).with_context(|| format!("Invalid JSON response:\n{body}"))?;
     if let Some(err) = v.get("error") {
-        let msg = err.get("message").and_then(|m| m.as_str()).unwrap_or("Unknown error");
+        let msg = err
+            .get("message")
+            .and_then(|m| m.as_str())
+            .unwrap_or("Unknown error");
         bail!("OpenAI Images API error: {}", msg);
     }
-    let data = v.get("data").with_context(|| format!("Missing 'data':\n{}", body))?;
+    let data = v
+        .get("data")
+        .with_context(|| format!("Missing 'data':\n{body}"))?;
     let items: Vec<ImageData> = serde_json::from_value(data.clone())
-        .with_context(|| format!("Failed to parse 'data':\n{:?}", data))?;
+        .with_context(|| format!("Failed to parse 'data':\n{data:?}"))?;
     Ok(items)
 }
