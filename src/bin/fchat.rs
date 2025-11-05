@@ -1,5 +1,5 @@
-use anyhow::{Context, Result};
-use clap::Parser;
+use anyhow::{anyhow, Context, Result};
+use clap::{Parser, ValueEnum};
 use inquire::{Confirm, Editor, Select, Text};
 use openai::{
     chat::{ChatCompletion, ChatCompletionDelta, ChatCompletionMessage, ChatCompletionMessageRole},
@@ -16,6 +16,7 @@ use FerriteChatter::{
     config::Config,
     core::{ask, Model, DEFAULT_MODEL},
     session::{SessionManager, SessionMessage},
+    web::{Citation, WebMessage, WebSearchClient, WebSearchResult},
 };
 
 /// Generate a one-sentence summary for a session via ChatCompletion
@@ -72,6 +73,12 @@ The user can activate the editor by entering 'v', allowing them to input multipl
 To terminate, the user needs to input "exit".
 "#;
 
+#[derive(Copy, Clone, Debug, ValueEnum)]
+enum ResponseMode {
+    Stream,
+    Batch,
+}
+
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
 struct Args {
@@ -90,6 +97,91 @@ struct Args {
     /// Initial context file
     #[clap(long = "file", short = 'f')]
     file: Option<String>,
+    /// Response mode (stream or batch)
+    #[clap(long = "response-mode", short = 'r', value_enum, default_value_t = ResponseMode::Stream)]
+    response_mode: ResponseMode,
+    /// Use Web Search API
+    #[clap(long = "web")]
+    web: bool,
+}
+
+async fn request_completion(
+    response_mode: ResponseMode,
+    model: &str,
+    messages: &[ChatCompletionMessage],
+    credentials: &Credentials,
+) -> Result<ChatCompletionMessage> {
+    match response_mode {
+        ResponseMode::Stream => {
+            let stream = ChatCompletionDelta::builder(model, messages.to_vec())
+                .credentials(credentials.clone())
+                .create_stream()
+                .await
+                .with_context(|| "Can't open Stream")?;
+            let chat = ask(stream).await?;
+            let message = chat
+                .choices
+                .first()
+                .with_context(|| "Can't get choices")?
+                .message
+                .clone();
+            Ok(message)
+        }
+        ResponseMode::Batch => {
+            let completion = ChatCompletion::builder(model, messages.to_vec())
+                .credentials(credentials.clone())
+                .create()
+                .await
+                .with_context(|| "Failed to create ChatCompletion")?;
+            let message = completion
+                .choices
+                .first()
+                .with_context(|| "Can't get choices")?
+                .message
+                .clone();
+            if let Some(content) = &message.content {
+                print!("{content}");
+            }
+            println!();
+            let _ = std::io::stdout().flush();
+            Ok(message)
+        }
+    }
+}
+
+fn build_web_messages(messages: &[ChatCompletionMessage]) -> Vec<WebMessage> {
+    messages
+        .iter()
+        .filter_map(|m| {
+            m.content.as_ref().map(|content| WebMessage {
+                role: role_to_str(&m.role).to_string(),
+                content: content.clone(),
+            })
+        })
+        .collect()
+}
+
+fn role_to_str(role: &ChatCompletionMessageRole) -> &'static str {
+    match role {
+        ChatCompletionMessageRole::System => "system",
+        ChatCompletionMessageRole::Assistant => "assistant",
+        ChatCompletionMessageRole::User => "user",
+        _ => "user",
+    }
+}
+
+fn print_citations(citations: &[Citation]) {
+    println!("--- Sources ---");
+    if citations.is_empty() {
+        println!("(No citations returned.)");
+        return;
+    }
+    for (idx, citation) in citations.iter().enumerate() {
+        match &citation.title {
+            Some(title) => println!("[{}] {} ({})", idx + 1, title, citation.url),
+            None => println!("[{}] {}", idx + 1, citation.url),
+        }
+    }
 }
 
 #[tokio::main]
@@ -109,10 +201,37 @@ async fn main() -> Result<()> {
             env::var("OPENAI_BASE_URL").unwrap_or_else(|_| "https://api.openai.com/v1".to_string()),
         ));
     let credentials = Credentials::new(key, base_url);
-    let model = args
-        .model
-        .unwrap_or(config.get_default_model().clone().unwrap_or(DEFAULT_MODEL))
-        .as_str();
+    let web_mode = args.web;
+    let model = if web_mode {
+        args.model
+            .as_ref()
+            .map(|m| m.as_str().to_string())
+            .unwrap_or_else(|| "gpt-5-search-api".to_string())
+    } else {
+        args.model
+            .as_ref()
+            .map(|m| m.as_str().to_string())
+            .or_else(|| {
+                config
+                    .get_default_model()
+                    .clone()
+                    .map(|m| m.as_str().to_string())
+            })
+            .unwrap_or_else(|| DEFAULT_MODEL.as_str().to_string())
+    };
+    let response_mode = if web_mode {
+        ResponseMode::Stream
+    } else {
+        args.response_mode
+    };
+    let requires_web_tool = if web_mode {
+        !model.to_ascii_lowercase().contains("search-api")
+    } else {
+        false
+    };
+    let verbose_web = std::env::var("FERRITE_DEBUG_WEB")
+        .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+        .unwrap_or(false);
 
     let role = if !model.starts_with("o1") {
         ChatCompletionMessageRole::System
@@ -150,6 +269,11 @@ async fn main() -> Result<()> {
     let mut initial_state = messages.clone();
     // HTTP client for image retrieval
     let client_http = Client::new();
+    let web_client = if web_mode {
+        Some(WebSearchClient::new())
+    } else {
+        None
+    };
     // Last generated image path for editing
     let mut last_image_path: Option<PathBuf> = None;
 
@@ -189,20 +313,43 @@ async fn main() -> Result<()> {
                     let id = session_manager.create_session("", &session_msgs)?;
                     session_id = Some(id);
                 }
-                let stream = ChatCompletionDelta::builder(model, messages.clone())
-                    .credentials(credentials.clone())
-                    .create_stream()
-                    .await
-                    .with_context(|| "Can't open Stream")?;
-
-                let answer = ask(stream)
-                    .await?
-                    .choices
-                    .first()
-                    .with_context(|| "Can't get choices")?
-                    .message
-                    .clone();
-                messages.push(answer);
+                let assistant_message = if web_mode {
+                    let web_client = web_client
+                        .as_ref()
+                        .expect("Web client should be initialized in web mode");
+                    let web_messages = build_web_messages(&messages);
+                    let result = web_client
+                        .stream_response(
+                            &credentials,
+                            model.as_str(),
+                            &web_messages,
+                            requires_web_tool,
+                            |delta| {
+                                print!("{delta}");
+                                std::io::stdout().flush().map_err(|e| anyhow!(e))?;
+                                Ok(())
+                            },
+                            verbose_web,
+                        )
+                        .await?;
+                    if !result.displayed && !result.message.is_empty() {
+                        println!("{}", result.message);
+                    }
+                    println!();
+                    let WebSearchResult {
+                        message, citations, ..
+                    } = result;
+                    print_citations(&citations);
+                    ChatCompletionMessage {
+                        role: ChatCompletionMessageRole::Assistant,
+                        content: Some(message),
+                        ..Default::default()
+                    }
+                } else {
+                    request_completion(response_mode, model.as_str(), &messages, &credentials)
+                        .await?
+                };
+                messages.push(assistant_message);
                 // save assistant response
                 let session_msgs: Vec<SessionMessage> = messages
                     .iter()
@@ -264,7 +411,13 @@ async fn main() -> Result<()> {
                             s.clone()
                         } else {
                             let msgs = session_manager.load_session(*id)?;
-                            let s = generate_summary(&msgs, credentials.clone(), model).await?;
+                            let summary_model = if web_mode {
+                                DEFAULT_MODEL.as_str()
+                            } else {
+                                model.as_str()
+                            };
+                            let s =
+                                generate_summary(&msgs, credentials.clone(), summary_model).await?;
                             session_manager.update_summary(*id, &s)?;
                             s
                         };
@@ -416,20 +569,43 @@ async fn main() -> Result<()> {
                     let id = session_manager.create_session("", &session_msgs)?;
                     session_id = Some(id);
                 }
-                let stream = ChatCompletionDelta::builder(model, messages.clone())
-                    .credentials(credentials.clone())
-                    .create_stream()
-                    .await
-                    .with_context(|| "Can't open Stream")?;
-
-                let answer = ask(stream)
-                    .await?
-                    .choices
-                    .first()
-                    .with_context(|| "Can't get choices")?
-                    .message
-                    .clone();
-                messages.push(answer);
+                let assistant_message = if web_mode {
+                    let web_client = web_client
+                        .as_ref()
+                        .expect("Web client should be initialized in web mode");
+                    let web_messages = build_web_messages(&messages);
+                    let result = web_client
+                        .stream_response(
+                            &credentials,
+                            model.as_str(),
+                            &web_messages,
+                            requires_web_tool,
+                            |delta| {
+                                print!("{delta}");
+                                std::io::stdout().flush().map_err(|e| anyhow!(e))?;
+                                Ok(())
+                            },
+                            verbose_web,
+                        )
+                        .await?;
+                    if !result.displayed && !result.message.is_empty() {
+                        println!("{}", result.message);
+                    }
+                    println!();
+                    let WebSearchResult {
+                        message, citations, ..
+                    } = result;
+                    print_citations(&citations);
+                    ChatCompletionMessage {
+                        role: ChatCompletionMessageRole::Assistant,
+                        content: Some(message),
+                        ..Default::default()
+                    }
+                } else {
+                    request_completion(response_mode, model.as_str(), &messages, &credentials)
+                        .await?
+                };
+                messages.push(assistant_message);
                 // save assistant response
                 let session_msgs: Vec<SessionMessage> = messages
                     .iter()
