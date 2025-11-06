@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use anyhow::{anyhow, Context, Result};
 use clap::Parser;
 use openai::{
     chat::{ChatCompletionDelta, ChatCompletionMessage, ChatCompletionMessageRole},
@@ -6,10 +6,11 @@ use openai::{
 };
 use std::env;
 use std::fs::File;
-use std::io::{self, IsTerminal, Read};
+use std::io::{self, IsTerminal, Read, Write};
 use FerriteChatter::{
     config::Config,
     core::{ask, Model, DEFAULT_MODEL},
+    web::{Citation, WebMessage, WebSearchClient, WebSearchResult},
 };
 
 #[derive(Parser, Debug)]
@@ -27,6 +28,9 @@ struct Args {
     /// OpenAI Model
     #[clap(long = "model", short = 'm', value_enum, default_value = "gpt-4o")]
     model: Option<Model>,
+    /// Use Web Search API
+    #[clap(long = "web")]
+    web: bool,
     #[clap(long = "file", short = 'f')]
     file: Option<String>,
     /// Prompt
@@ -64,10 +68,36 @@ async fn main() -> Result<()> {
         ));
     let credentials = Credentials::new(key, base_url);
 
-    let model = args
-        .model
-        .unwrap_or(config.get_default_model().clone().unwrap_or(DEFAULT_MODEL))
-        .as_str();
+    let web_mode = args.web;
+    let model_string = if web_mode {
+        args.model
+            .as_ref()
+            .map(|m| m.as_str().to_string())
+            .unwrap_or_else(|| "gpt-5-search-api".to_string())
+    } else {
+        args.model
+            .as_ref()
+            .map(|m| m.as_str().to_string())
+            .or_else(|| {
+                config
+                    .get_default_model()
+                    .clone()
+                    .map(|m| m.as_str().to_string())
+            })
+            .unwrap_or_else(|| DEFAULT_MODEL.as_str().to_string())
+    };
+
+    let requires_web_tool = if web_mode {
+        !model_string.to_ascii_lowercase().contains("search-api")
+    } else {
+        false
+    };
+
+    let verbose_web = std::env::var("FERRITE_DEBUG_WEB")
+        .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+        .unwrap_or(false);
+
+    let model = model_string.as_str();
 
     let role = if !model.starts_with("o1") {
         ChatCompletionMessageRole::System
@@ -99,11 +129,62 @@ async fn main() -> Result<()> {
         ..Default::default()
     });
 
-    let stream = ChatCompletionDelta::builder(model, messages.clone())
-        .credentials(credentials.clone())
-        .create_stream()
-        .await
-        .with_context(|| "Can't open Stream")?;
+    if web_mode {
+        let web_client = WebSearchClient::new();
+        let web_messages: Vec<WebMessage> = messages
+            .iter()
+            .filter_map(|m| {
+                m.content.as_ref().map(|content| WebMessage {
+                    role: match m.role {
+                        ChatCompletionMessageRole::System => "system".to_string(),
+                        ChatCompletionMessageRole::Assistant => "assistant".to_string(),
+                        _ => "user".to_string(),
+                    },
+                    content: content.clone(),
+                })
+            })
+            .collect();
 
-    ask(stream).await.map(|_| ())
+        let WebSearchResult {
+            message,
+            citations,
+            displayed,
+        } = web_client
+            .stream_response(
+                &credentials,
+                model,
+                &web_messages,
+                requires_web_tool,
+                |delta| {
+                    print!("{delta}");
+                    io::stdout().flush().map_err(|e| anyhow!(e))
+                },
+                verbose_web,
+            )
+            .await?;
+
+        if !displayed && !message.is_empty() {
+            println!("{message}");
+        }
+        if !citations.is_empty() {
+            println!();
+            println!("--- Sources ---");
+            for (idx, Citation { url, title }) in citations.iter().enumerate() {
+                if let Some(title) = title {
+                    println!("[{}] {} ({})", idx + 1, title, url);
+                } else {
+                    println!("[{}] {}", idx + 1, url);
+                }
+            }
+        }
+        Ok(())
+    } else {
+        let stream = ChatCompletionDelta::builder(model, messages.clone())
+            .credentials(credentials.clone())
+            .create_stream()
+            .await
+            .with_context(|| "Can't open Stream")?;
+
+        ask(stream).await.map(|_| ())
+    }
 }

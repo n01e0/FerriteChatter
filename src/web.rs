@@ -11,6 +11,12 @@ pub struct WebSearchClient {
     client: Client,
 }
 
+impl Default for WebSearchClient {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl WebSearchClient {
     pub fn new() -> Self {
         Self {
@@ -102,13 +108,179 @@ impl WebSearchClient {
         let mut text_buffer = String::new();
         let mut final_response: Option<Value> = None;
         let mut final_text = String::new();
-        let mut final_citation_values: Vec<Value> = Vec::new();
         let mut stream = response.bytes_stream();
         let mut carry = String::new();
-        let mut citation_values: Vec<Value> = Vec::new();
         let mut displayed = false;
+        let mut citations: Vec<Citation> = Vec::new();
+        let mut seen_citations: HashSet<String> = HashSet::new();
+        let mut handle_payload = |payload: &str| -> Result<()> {
+            let json: Value =
+                serde_json::from_str(payload).with_context(|| "Invalid JSON chunk")?;
+            collect_citations(&json, &mut citations, &mut seen_citations);
 
-        while let Some(chunk) = stream.next().await {
+            if let Some(event_type) = json.get("type").and_then(|v| v.as_str()) {
+                if verbose {
+                    eprintln!("[responses event type] {}", event_type);
+                }
+                match event_type {
+                    "response.output_text.delta" => {
+                        if let Some(delta_val) = json.get("delta") {
+                            if handle_delta_value(delta_val, &mut on_delta, &mut text_buffer)? {
+                                displayed = true;
+                            }
+                            if verbose {
+                                eprintln!(
+                                    "[responses delta] {}",
+                                    serde_json::to_string(delta_val).unwrap_or_default()
+                                );
+                            }
+                        }
+                    }
+                    t if t.starts_with("response.output_text.annotation") => {
+                        if let Some(annotation) = json.get("annotation") {
+                            if verbose {
+                                eprintln!(
+                                    "[responses annotation] {}",
+                                    serde_json::to_string(annotation).unwrap_or_default()
+                                );
+                            }
+                        }
+                    }
+                    "response.output_text" => {
+                        if let Some(output) = json.get("output") {
+                            for segment in extract_text_segments_list(output) {
+                                if !segment.is_empty() {
+                                    on_delta(&segment)?;
+                                    text_buffer.push_str(&segment);
+                                    displayed = true;
+                                }
+                            }
+                            if verbose {
+                                eprintln!(
+                                    "[responses output] {}",
+                                    serde_json::to_string(output).unwrap_or_default()
+                                );
+                            }
+                        }
+                    }
+                    "response.completed" => {
+                        if let Some(resp) = json.get("response") {
+                            final_response = Some(resp.clone());
+                            if verbose {
+                                eprintln!(
+                                    "[responses completed] {}",
+                                    serde_json::to_string(resp).unwrap_or_default()
+                                );
+                            }
+                        }
+                    }
+                    "message" => {
+                        let mut aggregated = String::new();
+                        if let Some(parts) = json.get("content").and_then(|c| c.as_array()) {
+                            for part in parts {
+                                if let Some(text) = part.get("text").and_then(|t| t.as_str()) {
+                                    aggregated.push_str(text);
+                                }
+                                if let Some(delta) = part.get("text_delta").and_then(|t| t.as_str())
+                                {
+                                    aggregated.push_str(delta);
+                                }
+                            }
+                        }
+                        if aggregated.is_empty() {
+                            if let Some(content_text) = extract_text_from_response(&json) {
+                                aggregated = content_text;
+                            }
+                        }
+                        if aggregated.is_empty() {
+                            if let Ok(as_json) = serde_json::to_string(&json) {
+                                aggregated = as_json;
+                            }
+                        }
+                        if verbose {
+                            eprintln!(
+                                "[responses message event] aggregated len={}",
+                                aggregated.len()
+                            );
+                        }
+                        if !aggregated.is_empty() {
+                            if text_buffer.is_empty() {
+                                text_buffer = aggregated.clone();
+                            }
+                            final_text = aggregated;
+                        }
+                        if final_response.is_none() {
+                            final_response = Some(json.clone());
+                        }
+                    }
+                    "response.error" => {
+                        let message = json
+                            .get("error")
+                            .and_then(|e| e.get("message"))
+                            .and_then(|m| m.as_str())
+                            .unwrap_or("Unknown error");
+                        return Err(anyhow::anyhow!(message.to_string()));
+                    }
+                    _ => {}
+                }
+            } else if json.get("output").is_some() {
+                if verbose {
+                    eprintln!(
+                        "[responses event type] (no type, keys={:?})",
+                        json.as_object()
+                            .map(|obj| obj.keys().cloned().collect::<Vec<_>>())
+                    );
+                    eprintln!(
+                        "[responses full] {}",
+                        serde_json::to_string(&json).unwrap_or_default()
+                    );
+                }
+                let parsed = parse_response_output(&json, &mut citations, &mut seen_citations);
+                if verbose {
+                    eprintln!("[responses full parsed text len={}]", parsed.len());
+                }
+                if !parsed.is_empty() {
+                    final_text = parsed;
+                }
+                final_response = Some(json.clone());
+            }
+            Ok(())
+        };
+
+        let mut process_event = |event: &str| -> Result<bool> {
+            if verbose {
+                eprintln!("[responses raw event] {}", event);
+            }
+            let mut payload_lines = Vec::new();
+            for line in event.lines() {
+                if let Some(rest) = line.strip_prefix("data:") {
+                    let data = rest.trim();
+                    if data == "[DONE]" {
+                        return Ok(true);
+                    }
+                    if !data.is_empty() {
+                        payload_lines.push(data.to_string());
+                    }
+                }
+            }
+            if payload_lines.is_empty() {
+                let trimmed = event.trim();
+                if trimmed.is_empty() {
+                    return Ok(false);
+                }
+                if let Err(err) = handle_payload(trimmed) {
+                    if verbose {
+                        eprintln!("[responses warn] direct event parse failed: {}", err);
+                    }
+                }
+                return Ok(false);
+            }
+            let payload = payload_lines.join("\n");
+            handle_payload(&payload)?;
+            Ok(false)
+        };
+
+        'response_stream: while let Some(chunk) = stream.next().await {
             let bytes = chunk.with_context(|| "Failed to read response chunk")?;
             let piece = String::from_utf8_lossy(&bytes);
             if verbose {
@@ -119,151 +291,74 @@ impl WebSearchClient {
             while let Some(idx) = carry.find("\n\n") {
                 let event = carry[..idx].to_string();
                 carry = carry[idx + 2..].to_string();
-                if let Some(line) = event.lines().find(|l| l.starts_with("data:")) {
-                    let payload = line.trim_start_matches("data:").trim();
-                    if payload == "[DONE]" {
-                        break;
-                    }
-                    if payload.is_empty() {
-                        continue;
-                    }
-                    let json: Value =
-                        serde_json::from_str(payload).with_context(|| "Invalid JSON chunk")?;
-                    collect_possible_citations(&json, &mut citation_values);
-
-                    if let Some(event_type) = json.get("type").and_then(|v| v.as_str()) {
-                        match event_type {
-                            "response.output_text.delta" => {
-                                if let Some(delta_val) = json.get("delta") {
-                                    if handle_delta_value(
-                                        delta_val,
-                                        &mut on_delta,
-                                        &mut text_buffer,
-                                    )? {
-                                        displayed = true;
-                                    }
-                                    collect_possible_citations(delta_val, &mut citation_values);
-                                    if verbose {
-                                        eprintln!(
-                                            "[responses delta] {}",
-                                            serde_json::to_string(delta_val).unwrap_or_default()
-                                        );
-                                    }
-                                }
-                            }
-                            t if t.starts_with("response.output_text.annotation") => {
-                                if let Some(annotation) = json.get("annotation") {
-                                    citation_values.push(annotation.clone());
-                                    if verbose {
-                                        eprintln!(
-                                            "[responses annotation] {}",
-                                            serde_json::to_string(annotation).unwrap_or_default()
-                                        );
-                                    }
-                                }
-                            }
-                            "response.output_text" => {
-                                if let Some(output) = json.get("output") {
-                                    for segment in extract_text_segments_list(output) {
-                                        if !segment.is_empty() {
-                                            on_delta(&segment)?;
-                                            text_buffer.push_str(&segment);
-                                            displayed = true;
-                                        }
-                                    }
-                                    citation_values.push(output.clone());
-                                    if verbose {
-                                        eprintln!(
-                                            "[responses output] {}",
-                                            serde_json::to_string(output).unwrap_or_default()
-                                        );
-                                    }
-                                }
-                            }
-                            "response.completed" => {
-                                if let Some(resp) = json.get("response") {
-                                    final_response = Some(resp.clone());
-                                    citation_values.push(resp.clone());
-                                    if verbose {
-                                        eprintln!(
-                                            "[responses completed] {}",
-                                            serde_json::to_string(resp).unwrap_or_default()
-                                        );
-                                    }
-                                }
-                            }
-                            "message" => {
-                                if let Some(content_text) = extract_text_from_response(&json) {
-                                    if text_buffer.is_empty() {
-                                        text_buffer = content_text.clone();
-                                    }
-                                    if !content_text.is_empty() && !displayed {
-                                        on_delta(&content_text)?;
-                                        displayed = true;
-                                    }
-                                    final_text = content_text;
-                                } else {
-                                    citation_values.push(json.clone());
-                                }
-                                if final_response.is_none() {
-                                    final_response = Some(json.clone());
-                                }
-                            }
-                            "response.error" => {
-                                let message = json
-                                    .get("error")
-                                    .and_then(|e| e.get("message"))
-                                    .and_then(|m| m.as_str())
-                                    .unwrap_or("Unknown error");
-                                return Err(anyhow::anyhow!(message.to_string()));
-                            }
-                            _ => { /* ignore other events */ }
-                        }
-                    } else if json.get("output").is_some() {
-                        if verbose {
-                            eprintln!(
-                                "[responses full] {}",
-                                serde_json::to_string(&json).unwrap_or_default()
-                            );
-                        }
-                        let (text, cites) = parse_response_output(&json);
-                        if !text.is_empty() {
-                            final_text = text;
-                        }
-                        if !cites.is_empty() {
-                            final_citation_values = cites;
-                        }
-                        if verbose {
-                            eprintln!("[responses full parsed]");
-                        }
-                        final_response = Some(json.clone());
-                    }
+                if process_event(&event)? {
+                    break 'response_stream;
                 }
             }
+        }
+
+        if !carry.trim().is_empty() {
+            let _ = process_event(&carry);
+        }
+
+        if verbose {
+            eprintln!(
+                "[responses debug] pre-final text_buffer len={} displayed={}",
+                text_buffer.len(),
+                displayed
+            );
         }
 
         if final_text.is_empty() {
             if text_buffer.trim().is_empty() {
                 if let Some(resp) = final_response.as_ref() {
-                    let (text, cites) = parse_response_output(resp);
-                    if !text.is_empty() {
-                        final_text = text;
+                    let parsed = parse_response_output(resp, &mut citations, &mut seen_citations);
+                    if verbose {
+                        eprintln!("[responses fallback parsed text len={}]", parsed.len());
+                    }
+                    if !parsed.is_empty() {
+                        final_text = parsed;
                     } else if let Some(fallback) = extract_text_from_response(resp) {
                         final_text = fallback;
+                        if verbose {
+                            eprintln!("[responses fallback extract len={}]", final_text.len());
+                        }
                     }
-                    if !cites.is_empty() {
-                        final_citation_values = cites;
-                    }
+                    collect_citations(resp, &mut citations, &mut seen_citations);
                 }
             } else {
                 final_text = text_buffer.clone();
             }
         }
 
-        let mut citations = Vec::new();
-        let mut seen = HashSet::new();
-        for value in citation_values.iter().chain(final_citation_values.iter()) {
-            collect_citations(value, &mut citations, &mut seen);
+        if final_text.is_empty() {
+            if let Some(resp) = final_response.as_ref() {
+                let segments = extract_text_segments_list(resp);
+                if !segments.is_empty() {
+                    final_text = segments.join("\n\n");
+                    if verbose {
+                        eprintln!("[responses fallback segments len={}]", final_text.len());
+                    }
+                } else if let Ok(as_json) = serde_json::to_string(resp) {
+                    final_text = as_json;
+                    if verbose {
+                        eprintln!("[responses fallback json len={}]", final_text.len());
+                    }
+                } else if verbose {
+                    eprintln!("[responses fallback segments empty]");
+                }
+            }
+        }
+
+        if verbose {
+            eprintln!(
+                "[responses debug] final_text len={} displayed={}",
+                final_text.len(),
+                displayed
+            );
+            if !final_text.is_empty() {
+                eprintln!("[responses debug] final_text preview: {}", final_text);
+            }
         }
 
         Ok(WebSearchResult {
@@ -321,11 +416,97 @@ impl WebSearchClient {
         let mut text_buffer = String::new();
         let mut carry = String::new();
         let mut stream = response.bytes_stream();
-        let mut citation_values: Vec<Value> = Vec::new();
+        let mut citations: Vec<Citation> = Vec::new();
+        let mut seen_citations: HashSet<String> = HashSet::new();
         let mut final_message: Option<Value> = None;
         let mut displayed = false;
+        let mut handle_payload = |payload: &str| -> Result<bool> {
+            let json: Value =
+                serde_json::from_str(payload).with_context(|| "Invalid JSON chunk")?;
+            collect_citations(&json, &mut citations, &mut seen_citations);
 
-        while let Some(chunk) = stream.next().await {
+            if verbose {
+                eprintln!(
+                    "[chat event type] {}",
+                    json.get("type")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("<none>")
+                );
+            }
+
+            if let Some(choices) = json.get("choices").and_then(|c| c.as_array()) {
+                if let Some(choice) = choices.first() {
+                    if let Some(delta) = choice.get("delta") {
+                        process_chat_delta(
+                            delta,
+                            &mut text_buffer,
+                            &mut citations,
+                            &mut seen_citations,
+                            &mut on_delta,
+                            &mut displayed,
+                        )?;
+                        if verbose {
+                            eprintln!(
+                                "[chat delta] {}",
+                                serde_json::to_string(delta).unwrap_or_default()
+                            );
+                        }
+                    }
+                    if let Some(message) = choice.get("message") {
+                        final_message = Some(message.clone());
+                    }
+                    if choice
+                        .get("finish_reason")
+                        .and_then(|f| f.as_str())
+                        .is_some()
+                    {
+                        if let Some(message) = choice.get("message") {
+                            final_message = Some(message.clone());
+                        }
+                    }
+                }
+            } else if text_buffer.is_empty() {
+                if let Some(content) = extract_text_from_response(&json) {
+                    text_buffer = content;
+                }
+            }
+            Ok(false)
+        };
+
+        let mut process_event = |event: &str| -> Result<bool> {
+            if verbose {
+                eprintln!("[chat raw event] {}", event);
+            }
+            let mut payload_lines = Vec::new();
+            for line in event.lines() {
+                if let Some(rest) = line.strip_prefix("data:") {
+                    let data = rest.trim();
+                    if data == "[DONE]" {
+                        return Ok(true);
+                    }
+                    if !data.is_empty() {
+                        payload_lines.push(data.to_string());
+                    }
+                }
+            }
+            if payload_lines.is_empty() {
+                let trimmed = event.trim();
+                if trimmed.is_empty() {
+                    return Ok(false);
+                }
+                if let Err(err) = handle_payload(trimmed) {
+                    if verbose {
+                        eprintln!("[chat warn] direct event parse failed: {}", err);
+                    }
+                }
+                return Ok(false);
+            }
+            let payload = payload_lines.join("\n");
+            handle_payload(&payload)?;
+            Ok(false)
+        };
+
+        'chat_stream: while let Some(chunk) = stream.next().await {
             let bytes = chunk.with_context(|| "Failed to read response chunk")?;
             let piece = String::from_utf8_lossy(&bytes);
             if verbose {
@@ -336,49 +517,14 @@ impl WebSearchClient {
             while let Some(idx) = carry.find("\n\n") {
                 let event = carry[..idx].to_string();
                 carry = carry[idx + 2..].to_string();
-                if let Some(line) = event.lines().find(|l| l.starts_with("data:")) {
-                    let payload = line.trim_start_matches("data:").trim();
-                    if payload == "[DONE]" {
-                        break;
-                    }
-                    if payload.is_empty() {
-                        continue;
-                    }
-                    let json: Value =
-                        serde_json::from_str(payload).with_context(|| "Invalid JSON chunk")?;
-                    if let Some(choices) = json.get("choices").and_then(|c| c.as_array()) {
-                        if let Some(choice) = choices.first() {
-                            if let Some(delta) = choice.get("delta") {
-                                process_chat_delta(
-                                    delta,
-                                    &mut text_buffer,
-                                    &mut citation_values,
-                                    &mut on_delta,
-                                    &mut displayed,
-                                )?;
-                                if verbose {
-                                    eprintln!(
-                                        "[chat delta] {}",
-                                        serde_json::to_string(delta).unwrap_or_default()
-                                    );
-                                }
-                            }
-                            if let Some(message) = choice.get("message") {
-                                final_message = Some(message.clone());
-                            }
-                            if choice
-                                .get("finish_reason")
-                                .and_then(|f| f.as_str())
-                                .is_some()
-                            {
-                                if let Some(message) = choice.get("message") {
-                                    final_message = Some(message.clone());
-                                }
-                            }
-                        }
-                    }
+                if process_event(&event)? {
+                    break 'chat_stream;
                 }
             }
+        }
+
+        if !carry.trim().is_empty() {
+            let _ = process_event(&carry);
         }
 
         if let Some(message) = final_message {
@@ -386,21 +532,43 @@ impl WebSearchClient {
                 if let Some(content) = extract_text_from_message(&message) {
                     if !content.is_empty() {
                         text_buffer = content;
+                        if verbose {
+                            eprintln!("[chat final message content len={}]", text_buffer.len());
+                        }
                     }
                 }
             }
-            citation_values.push(message);
+            if text_buffer.is_empty() {
+                let segments = extract_text_segments_list(&message);
+                if !segments.is_empty() {
+                    text_buffer = segments.join("\n\n");
+                    if verbose {
+                        eprintln!("[chat final segments len={}]", text_buffer.len());
+                    }
+                } else if let Ok(as_json) = serde_json::to_string(&message) {
+                    text_buffer = as_json;
+                    if verbose {
+                        eprintln!("[chat final json len={}]", text_buffer.len());
+                    }
+                } else if verbose {
+                    eprintln!("[chat final segments empty]");
+                }
+            }
+            if verbose {
+                eprintln!("[chat final message] text_buffer len={}", text_buffer.len());
+            }
+            collect_citations(&message, &mut citations, &mut seen_citations);
         }
 
-        let mut citations = Vec::new();
-        let mut seen = HashSet::new();
-        for value in citation_values {
-            collect_citations(&value, &mut citations, &mut seen);
-        }
-
-        if !displayed && !text_buffer.is_empty() {
-            on_delta(&text_buffer)?;
-            displayed = true;
+        if verbose {
+            eprintln!(
+                "[chat debug] text_buffer len={} displayed={}",
+                text_buffer.len(),
+                displayed
+            );
+            if !text_buffer.is_empty() {
+                eprintln!("[chat debug] text_buffer preview: {}", text_buffer);
+            }
         }
 
         Ok(WebSearchResult {
@@ -540,20 +708,15 @@ where
     Ok(emitted)
 }
 
-fn collect_possible_citations(value: &Value, collector: &mut Vec<Value>) {
-    match value {
-        Value::Object(_) | Value::Array(_) => collector.push(value.clone()),
-        _ => {}
-    }
-}
-
-fn parse_response_output(value: &Value) -> (String, Vec<Value>) {
+fn parse_response_output(
+    value: &Value,
+    citations: &mut Vec<Citation>,
+    seen: &mut HashSet<String>,
+) -> String {
     let mut text = String::new();
-    let mut citations = Vec::new();
 
     if let Some(output) = value.get("output").and_then(|o| o.as_array()) {
         for item in output {
-            collect_possible_citations(item, &mut citations);
             let item_type = item.get("type").and_then(|t| t.as_str());
             if item_type != Some("message") {
                 continue;
@@ -566,8 +729,8 @@ fn parse_response_output(value: &Value) -> (String, Vec<Value>) {
                             if let Some(s) = part.get("text").and_then(|t| t.as_str()) {
                                 text.push_str(s);
                             }
-                            if let Some(ann) = part.get("annotations") {
-                                citations.push(ann.clone());
+                            if let Some(delta) = part.get("text_delta").and_then(|t| t.as_str()) {
+                                text.push_str(delta);
                             }
                         }
                         _ => {
@@ -578,19 +741,20 @@ fn parse_response_output(value: &Value) -> (String, Vec<Value>) {
                             }
                         }
                     }
-                    collect_possible_citations(part, &mut citations);
+                    collect_citations(part, citations, seen);
                 }
             }
         }
     }
 
-    (text, citations)
+    text
 }
 
 fn process_chat_delta<F>(
     delta: &Value,
     text_buffer: &mut String,
-    citation_values: &mut Vec<Value>,
+    citations: &mut Vec<Citation>,
+    seen: &mut HashSet<String>,
     on_delta: &mut F,
     displayed: &mut bool,
 ) -> Result<()>
@@ -604,7 +768,7 @@ where
                     if handle_delta_value(item, on_delta, text_buffer)? {
                         *displayed = true;
                     }
-                    collect_possible_citations(item, citation_values);
+                    collect_citations(item, citations, seen);
                 }
             }
             Value::String(s) => {
@@ -618,19 +782,19 @@ where
                 if handle_delta_value(other, on_delta, text_buffer)? {
                     *displayed = true;
                 }
-                collect_possible_citations(other, citation_values);
+                collect_citations(other, citations, seen);
             }
         }
     }
 
-    if let Some(citations) = delta.get("citations") {
-        citation_values.push(citations.clone());
+    if let Some(cites_val) = delta.get("citations") {
+        collect_citations(cites_val, citations, seen);
     }
     if let Some(annotations) = delta.get("annotations") {
-        citation_values.push(annotations.clone());
+        collect_citations(annotations, citations, seen);
     }
     if let Some(metadata) = delta.get("metadata") {
-        citation_values.push(metadata.clone());
+        collect_citations(metadata, citations, seen);
     }
 
     Ok(())
@@ -779,17 +943,14 @@ mod tests {
                 }
             ]
         });
-        let (text, citation_values) = parse_response_output(&response);
+        let mut citations = Vec::new();
+        let mut seen = HashSet::new();
+        let text = parse_response_output(&response, &mut citations, &mut seen);
         assert!(
             text.contains("Short answer: example text."),
             "parsed text should contain the response body"
         );
 
-        let mut citations = Vec::new();
-        let mut seen = HashSet::new();
-        for value in citation_values {
-            collect_citations(&value, &mut citations, &mut seen);
-        }
         assert_eq!(citations.len(), 1);
         assert_eq!(citations[0].url, "https://example.com");
         assert_eq!(citations[0].title.as_deref(), Some("Example Title"));
@@ -814,14 +975,9 @@ mod tests {
             ]
         });
 
-        let mut collected = Vec::new();
-        collect_possible_citations(&event, &mut collected);
-
         let mut citations = Vec::new();
         let mut seen = HashSet::new();
-        for value in collected {
-            collect_citations(&value, &mut citations, &mut seen);
-        }
+        collect_citations(&event, &mut citations, &mut seen);
         assert_eq!(citations.len(), 1);
         assert_eq!(citations[0].url, "https://example.org");
         assert_eq!(citations[0].title.as_deref(), Some("Example Org"));
