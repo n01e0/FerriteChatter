@@ -19,8 +19,14 @@ $ fchat
 # 単発の質問 パイプまたは引数からの入力
 $ fask
 
+# Web検索モード（最新情報と引用つき）fchat, fask
+$ fchat --web -m gpt-5 "今日のニュース教えて"
+`--web` は検索対応モデル（デフォルトは `gpt-5-search-api`）を使用し、引用一覧を `--- Sources ---` に表示します。
+
 # 日英・英日翻訳 パイプまたは引数からの入力
-```bash
+$ ftrans 'hello'
+$ cat english_doc.txt | ftrans
+
 # 画像生成
 # 引数からプロンプト指定
 # (デフォルトサイズは1024x1024、他に1024x1792,1792x1024を指定可能)
@@ -43,15 +49,20 @@ $ ftrans
 # fchatのみ、ファイルからコンテキストを渡せます。
 
 $ fchat -h
+ChatGPT CLI
+
 Usage: fchat [OPTIONS]
 
 Options:
-  -g, --general <GENERAL>  Open Prompt(General Prompt)
-  -k, --key <KEY>          OenAI API Key
-  -m, --model <MODEL>      OpenAI Model [possible values: chatgpt-4o-latest, gpt-4, gpt-4o, gpt-4o-2024-05-13, gpt-4o-2024-08-06, gpt-4o-mini, gpt-4o-mini-2024-07-18, gpt-4-0314, gpt-4-0613, gpt-4-32k, gpt-4-32k-0613, gpt-4-0125-preview, gpt-4-1106-preview, gpt-4-turbo, gpt-4-turbo-2024-04-09, gpt-4-turbo-preview, gpt-3.5-turbo, gpt-3.5-turbo-0125, gpt-3.5-turbo-0301, gpt-3.5-turbo-0613, gpt-3.5-turbo-0613, gpt-3.5-turbo-16k, gpt-3.5-turbo-16k-0613]
-  -f, --file <FILE>        Initial context file
-  -h, --help               Print help
-  -V, --version            Print version
+  -g, --general <GENERAL>              Open Prompt(General Prompt)
+  -k, --key <KEY>                      OpenAI API Key
+  -b, --base-url <BASE_URL>            OpenAI API Base URL
+  -m, --model <MODEL>                  OpenAI Model [possible values: o3-pro-2025-06-10, gpt-4o-mini-search-preview, gpt-4o-mini-search-preview-2025-03-11, gpt-4-turbo, o3-mini-2025-01-31, gpt-4.1, gpt-4.1-mini-2025-04-14, gpt-5-nano-2025-08-07, gpt-4.1-mini, gpt-4-turbo-2024-04-09, o3-2025-04-16, o4-mini-2025-04-16, gpt-4.1-2025-04-14, gpt-4o-2024-05-13, gpt-4o-search-preview-2025-03-11, gpt-4o-search-preview, gpt-3.5-turbo-16k, o1-mini, o1-mini-2024-09-12, gpt-4o-mini-2024-07-18, o3, o4-mini, gpt-5-chat-latest, o4-mini-deep-research-2025-06-26, gpt-5-nano, gpt-4-turbo-preview, o3-deep-research, chatgpt-4o-latest, gpt-4o-mini-tts, o1-pro-2025-03-19, o1, o1-pro, o4-mini-deep-research, o3-deep-research-2025-06-26, o3-pro, gpt-4o-2024-11-20, gpt-4-0125-preview, gpt-5-mini, gpt-5-mini-2025-08-07, gpt-image-1, gpt-4o-mini, o3-mini, gpt-5, gpt-4.1-nano-2025-04-14, gpt-4.1-nano, gpt-4o-transcribe, gpt-3.5-turbo-instruct, gpt-3.5-turbo-instruct-0914, gpt-4-1106-preview, gpt-5-codex, gpt-4o, gpt-5-2025-08-07, gpt-4o-2024-08-06, o1-2024-12-17, gpt-4, gpt-4-0613, gpt-5-search-api, gpt-3.5-turbo, gpt-3.5-turbo-0125, gpt-4o-transcribe-diarize, gpt-3.5-turbo-1106, gpt-5-search-api-2025-10-14, gpt-5-pro, gpt-5-pro-2025-10-06, gpt-4o-mini-transcribe, gpt-image-1-mini]
+  -f, --file <FILE>                    Initial context file
+  -r, --response-mode <RESPONSE_MODE>  Response mode (stream or batch) [default: stream] [possible values: stream, batch]
+      --web                            Use Web Search API
+  -h, --help                           Print help
+  -V, --version                        Print version
 ```
 
 ## installation
@@ -231,5 +242,5 @@ tnoremap <Esc> <C-\><C-n>
 
 ```yaml
 openai_api_key: "XXXX"
-default_model: "gpt-4o"
+default_model: "gpt-5"
 ```
