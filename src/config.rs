@@ -19,7 +19,7 @@ impl Default for Config {
         Self {
             openai_api_key: None,
             openai_base_url: None,
-            default_model: Some(crate::core::Model::Gpt_4o),
+            default_model: Some(crate::core::Model::Gpt_5_6_Luna),
         }
     }
 }
