@@ -31,6 +31,9 @@ struct Args {
         default_value = "gpt-5.6-luna"
     )]
     model: Option<Model>,
+    /// Input File
+    #[clap(long = "file", short = 'f', value_parser)]
+    file: Option<std::path::PathBuf>,
     /// Prompt
     prompt: Option<String>,
 }
@@ -72,19 +75,23 @@ async fn main() -> Result<()> {
         ..Default::default()
     }];
 
-    let mut stdin = io::stdin();
-    let prompt = if !stdin.is_terminal() {
-        let mut s = String::new();
-        let _ = stdin.read_to_string(&mut s);
-        Some(format!(
-            "{}\n{}",
-            s,
-            args.prompt.unwrap_or(String::default())
-        ))
+    let prompt = if let Some(f) = args.file {
+        std::fs::read_to_string(f).with_context(|| "Can't read context from file")?
     } else {
-        args.prompt
-    }
-    .with_context(|| "Please provide input via a pipe or pass the prompt as an argument.")?;
+        let mut stdin = io::stdin();
+        if !stdin.is_terminal() {
+            let mut s = String::new();
+            let _ = stdin.read_to_string(&mut s);
+            Some(format!(
+                "{}\n{}",
+                s,
+                args.prompt.unwrap_or(String::default())
+            ))
+        } else {
+            args.prompt
+        }
+        .with_context(|| "Please provide input via a pipe or pass the prompt as an argument.")?
+    };
 
     messages.push(ChatCompletionMessage {
         role: ChatCompletionMessageRole::User,
