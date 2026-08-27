@@ -1,23 +1,23 @@
-use anyhow::{anyhow, Context, Result};
+use FerriteChatter::image::{edit_images, generate_images};
+use FerriteChatter::{
+    config::Config,
+    core::{DEFAULT_MODEL, Model, ask},
+    session::{SessionManager, SessionMessage},
+    web::{Citation, WebMessage, WebSearchClient, WebSearchResult},
+};
+use anyhow::{Context, Result, anyhow};
 use clap::{Parser, ValueEnum};
 use inquire::{Confirm, Editor, Select, Text};
 use openai::{
-    chat::{ChatCompletion, ChatCompletionDelta, ChatCompletionMessage, ChatCompletionMessageRole},
     Credentials,
+    chat::{ChatCompletion, ChatCompletionDelta, ChatCompletionMessage, ChatCompletionMessageRole},
 };
 use reqwest::Client;
 use std::fs::File;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::{env, fs};
-use viuer::{print_from_file, Config as ViuerConfig};
-use FerriteChatter::image::{edit_images, generate_images};
-use FerriteChatter::{
-    config::Config,
-    core::{ask, Model, DEFAULT_MODEL},
-    session::{SessionManager, SessionMessage},
-    web::{Citation, WebMessage, WebSearchClient, WebSearchResult},
-};
+use viuer::{Config as ViuerConfig, print_from_file};
 
 /// Generate a one-sentence summary for a session via ChatCompletion
 async fn generate_summary(

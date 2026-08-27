@@ -1,8 +1,8 @@
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use openai::Credentials;
 use reqwest::{
-    multipart::{Form, Part},
     Client,
+    multipart::{Form, Part},
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;

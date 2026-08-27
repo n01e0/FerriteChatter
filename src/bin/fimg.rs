@@ -1,13 +1,15 @@
 // src/bin/fimg.rs
 //! Generate images via OpenAI Images API
-use anyhow::{bail, Context, Result};
-use base64::{engine::general_purpose, Engine as _};
+use FerriteChatter::config::Config;
+use FerriteChatter::image::edit_images;
+use anyhow::{Context, Result, bail};
+use base64::{Engine as _, engine::general_purpose};
 use clap::Parser;
 use inquire::{Confirm, Select, Text};
 use openai::Credentials;
 use reqwest::{
-    multipart::{Form, Part},
     Client,
+    multipart::{Form, Part},
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -15,9 +17,7 @@ use std::env;
 use std::fs;
 use std::io::{self, IsTerminal, Read};
 use std::path::PathBuf;
-use viuer::{print_from_file, Config as ViuerConfig};
-use FerriteChatter::config::Config;
-use FerriteChatter::image::edit_images;
+use viuer::{Config as ViuerConfig, print_from_file};
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about = "Generate images with OpenAI")]
@@ -308,7 +308,9 @@ async fn main() -> Result<()> {
                 Err(err) => {
                     let msg = err.to_string();
                     if msg.contains("safety_violations") {
-                        println!("編集が安全システムによって拒否されました。別のプロンプトを試してください。");
+                        println!(
+                            "編集が安全システムによって拒否されました。別のプロンプトを試してください。"
+                        );
                     } else {
                         println!("Error during edit: {msg}");
                     }

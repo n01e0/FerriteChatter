@@ -1,12 +1,12 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use clap::ValueEnum;
 use ferrite_model_gen::generate_models;
 use openai::chat::{ChatCompletion, ChatCompletionDelta};
-use serde::de::{self, Deserializer, Visitor};
 use serde::Deserialize;
+use serde::de::{self, Deserializer, Visitor};
 use std::convert::TryFrom;
 use std::fmt;
-use std::io::{stdout, Write};
+use std::io::{Write, stdout};
 use tokio::sync::mpsc::Receiver;
 
 generate_models!();
