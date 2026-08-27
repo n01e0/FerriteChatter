@@ -1,17 +1,17 @@
-use anyhow::{anyhow, Context, Result};
+use FerriteChatter::{
+    config::Config,
+    core::{DEFAULT_MODEL, Model, ask},
+    web::{Citation, WebMessage, WebSearchClient, WebSearchResult},
+};
+use anyhow::{Context, Result, anyhow};
 use clap::Parser;
 use openai::{
-    chat::{ChatCompletionDelta, ChatCompletionMessage, ChatCompletionMessageRole},
     Credentials,
+    chat::{ChatCompletionDelta, ChatCompletionMessage, ChatCompletionMessageRole},
 };
 use std::env;
 use std::fs::File;
 use std::io::{self, IsTerminal, Read, Write};
-use FerriteChatter::{
-    config::Config,
-    core::{ask, Model, DEFAULT_MODEL},
-    web::{Citation, WebMessage, WebSearchClient, WebSearchResult},
-};
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -26,7 +26,12 @@ struct Args {
     #[clap(long = "base-url", short = 'b')]
     base_url: Option<String>,
     /// OpenAI Model
-    #[clap(long = "model", short = 'm', value_enum, default_value = "gpt-4o")]
+    #[clap(
+        long = "model",
+        short = 'm',
+        value_enum,
+        default_value = "gpt-5.6-luna"
+    )]
     model: Option<Model>,
     /// Use Web Search API
     #[clap(long = "web")]
