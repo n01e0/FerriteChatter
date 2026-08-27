@@ -393,7 +393,7 @@ async fn main() -> Result<()> {
             "/session" => {
                 // List sessions in descending order (newest first)
                 let mut existing_sessions = session_manager.list_sessions()?;
-                existing_sessions.sort_by(|a, b| b.0.cmp(&a.0));
+                existing_sessions.sort_by_key(|a| std::cmp::Reverse(a.0));
                 if existing_sessions.is_empty() {
                     println!("No sessions available.");
                 } else {
@@ -486,17 +486,16 @@ async fn main() -> Result<()> {
                     Ok(images) => {
                         let cfg = ViuerConfig::default();
                         for img in images {
-                            if let Some(url) = img.url {
-                                if let Ok(resp) = client_http.get(&url).send().await {
-                                    if let Ok(bytes) = resp.bytes().await {
-                                        // save to temp file
-                                        let tmp = env::temp_dir().join("fchat_image.png");
-                                        let _ = fs::write(&tmp, &bytes);
-                                        // display via Sixel
-                                        let _ = print_from_file(&tmp, &cfg);
-                                        last_image_path = Some(tmp);
-                                    }
-                                }
+                            if let Some(url) = img.url
+                                && let Ok(resp) = client_http.get(&url).send().await
+                                && let Ok(bytes) = resp.bytes().await
+                            {
+                                // save to temp file
+                                let tmp = env::temp_dir().join("fchat_image.png");
+                                let _ = fs::write(&tmp, &bytes);
+                                // display via Sixel
+                                let _ = print_from_file(&tmp, &cfg);
+                                last_image_path = Some(tmp);
                             }
                         }
                     }
@@ -523,17 +522,16 @@ async fn main() -> Result<()> {
                         Ok(images) => {
                             let cfg = ViuerConfig::default();
                             for img in images {
-                                if let Some(url) = img.url {
-                                    if let Ok(resp) = client_http.get(&url).send().await {
-                                        if let Ok(bytes) = resp.bytes().await {
-                                            // save to temp file
-                                            let tmp = env::temp_dir().join("fchat_image.png");
-                                            let _ = fs::write(&tmp, &bytes);
-                                            // display via Sixel
-                                            let _ = print_from_file(&tmp, &cfg);
-                                            last_image_path = Some(tmp);
-                                        }
-                                    }
+                                if let Some(url) = img.url
+                                    && let Ok(resp) = client_http.get(&url).send().await
+                                    && let Ok(bytes) = resp.bytes().await
+                                {
+                                    // save to temp file
+                                    let tmp = env::temp_dir().join("fchat_image.png");
+                                    let _ = fs::write(&tmp, &bytes);
+                                    // display via Sixel
+                                    let _ = print_from_file(&tmp, &cfg);
+                                    last_image_path = Some(tmp);
                                 }
                             }
                         }

@@ -137,13 +137,13 @@ impl WebSearchClient {
                         }
                     }
                     t if t.starts_with("response.output_text.annotation") => {
-                        if let Some(annotation) = json.get("annotation") {
-                            if verbose {
-                                eprintln!(
-                                    "[responses annotation] {}",
-                                    serde_json::to_string(annotation).unwrap_or_default()
-                                );
-                            }
+                        if let Some(annotation) = json.get("annotation")
+                            && verbose
+                        {
+                            eprintln!(
+                                "[responses annotation] {}",
+                                serde_json::to_string(annotation).unwrap_or_default()
+                            );
                         }
                     }
                     "response.output_text" => {
@@ -187,15 +187,15 @@ impl WebSearchClient {
                                 }
                             }
                         }
-                        if aggregated.is_empty() {
-                            if let Some(content_text) = extract_text_from_response(&json) {
-                                aggregated = content_text;
-                            }
+                        if aggregated.is_empty()
+                            && let Some(content_text) = extract_text_from_response(&json)
+                        {
+                            aggregated = content_text;
                         }
-                        if aggregated.is_empty() {
-                            if let Ok(as_json) = serde_json::to_string(&json) {
-                                aggregated = as_json;
-                            }
+                        if aggregated.is_empty()
+                            && let Ok(as_json) = serde_json::to_string(&json)
+                        {
+                            aggregated = as_json;
                         }
                         if verbose {
                             eprintln!(
@@ -268,10 +268,10 @@ impl WebSearchClient {
                 if trimmed.is_empty() {
                     return Ok(false);
                 }
-                if let Err(err) = handle_payload(trimmed) {
-                    if verbose {
-                        eprintln!("[responses warn] direct event parse failed: {}", err);
-                    }
+                if let Err(err) = handle_payload(trimmed)
+                    && verbose
+                {
+                    eprintln!("[responses warn] direct event parse failed: {}", err);
                 }
                 return Ok(false);
             }
@@ -331,22 +331,22 @@ impl WebSearchClient {
             }
         }
 
-        if final_text.is_empty() {
-            if let Some(resp) = final_response.as_ref() {
-                let segments = extract_text_segments_list(resp);
-                if !segments.is_empty() {
-                    final_text = segments.join("\n\n");
-                    if verbose {
-                        eprintln!("[responses fallback segments len={}]", final_text.len());
-                    }
-                } else if let Ok(as_json) = serde_json::to_string(resp) {
-                    final_text = as_json;
-                    if verbose {
-                        eprintln!("[responses fallback json len={}]", final_text.len());
-                    }
-                } else if verbose {
-                    eprintln!("[responses fallback segments empty]");
+        if final_text.is_empty()
+            && let Some(resp) = final_response.as_ref()
+        {
+            let segments = extract_text_segments_list(resp);
+            if !segments.is_empty() {
+                final_text = segments.join("\n\n");
+                if verbose {
+                    eprintln!("[responses fallback segments len={}]", final_text.len());
                 }
+            } else if let Ok(as_json) = serde_json::to_string(resp) {
+                final_text = as_json;
+                if verbose {
+                    eprintln!("[responses fallback json len={}]", final_text.len());
+                }
+            } else if verbose {
+                eprintln!("[responses fallback segments empty]");
             }
         }
 
@@ -459,16 +459,15 @@ impl WebSearchClient {
                         .get("finish_reason")
                         .and_then(|f| f.as_str())
                         .is_some()
+                        && let Some(message) = choice.get("message")
                     {
-                        if let Some(message) = choice.get("message") {
-                            final_message = Some(message.clone());
-                        }
+                        final_message = Some(message.clone());
                     }
                 }
-            } else if text_buffer.is_empty() {
-                if let Some(content) = extract_text_from_response(&json) {
-                    text_buffer = content;
-                }
+            } else if text_buffer.is_empty()
+                && let Some(content) = extract_text_from_response(&json)
+            {
+                text_buffer = content;
             }
             Ok(false)
         };
@@ -494,10 +493,10 @@ impl WebSearchClient {
                 if trimmed.is_empty() {
                     return Ok(false);
                 }
-                if let Err(err) = handle_payload(trimmed) {
-                    if verbose {
-                        eprintln!("[chat warn] direct event parse failed: {}", err);
-                    }
+                if let Err(err) = handle_payload(trimmed)
+                    && verbose
+                {
+                    eprintln!("[chat warn] direct event parse failed: {}", err);
                 }
                 return Ok(false);
             }
@@ -528,14 +527,13 @@ impl WebSearchClient {
         }
 
         if let Some(message) = final_message {
-            if text_buffer.is_empty() {
-                if let Some(content) = extract_text_from_message(&message) {
-                    if !content.is_empty() {
-                        text_buffer = content;
-                        if verbose {
-                            eprintln!("[chat final message content len={}]", text_buffer.len());
-                        }
-                    }
+            if text_buffer.is_empty()
+                && let Some(content) = extract_text_from_message(&message)
+                && !content.is_empty()
+            {
+                text_buffer = content;
+                if verbose {
+                    eprintln!("[chat final message content len={}]", text_buffer.len());
                 }
             }
             if text_buffer.is_empty() {

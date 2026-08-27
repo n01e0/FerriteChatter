@@ -141,7 +141,7 @@ async fn main() -> Result<()> {
         Some(args.response_format.clone())
     };
     // Send either generation or edit request
-    let resp = if args.image.is_some() {
+    let resp = if let Some(img_path) = &args.image {
         // Image editing
         let edit_url = format!("{}/images/edits", credentials.base_url());
         let mut form = Form::new()
@@ -153,8 +153,6 @@ async fn main() -> Result<()> {
             form = form.text("response_format", fmt);
         }
         // Attach image file
-        // Attach image file
-        let img_path = args.image.as_ref().unwrap();
         let img_bytes = fs::read(img_path)
             .with_context(|| format!("Failed to read image file {img_path:?}"))?;
         let img_part = Part::bytes(img_bytes).file_name(

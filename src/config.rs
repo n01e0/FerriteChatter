@@ -31,16 +31,16 @@ impl Config {
         let base = env::var("XDG_CONFIG_HOME").unwrap_or_else(|_| format!("{home}/.config"));
         let conf_dir = Path::new(&base).join("ferrite");
         create_dir_all(&conf_dir)
-            .with_context(|| format!("Can't create config directory {:?}", &conf_dir))?;
+            .with_context(|| format!("Can't create config directory {:?}", conf_dir))?;
         let config_path = conf_dir.join("ferriteconf.yaml");
 
         if !config_path.exists() {
             Ok(Self::default())
         } else {
             let content = read_to_string(&config_path)
-                .with_context(|| format!("Can't read config file {:?}", &config_path))?;
+                .with_context(|| format!("Can't read config file {:?}", config_path))?;
             serde_yaml::from_str(&content)
-                .with_context(|| format!("Can't parse config file {:?}", &config_path))
+                .with_context(|| format!("Can't parse config file {:?}", config_path))
         }
     }
 }
