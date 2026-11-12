@@ -26,12 +26,7 @@ struct Args {
     #[clap(long = "base-url", short = 'b')]
     base_url: Option<String>,
     /// OpenAI Model
-    #[clap(
-        long = "model",
-        short = 'm',
-        value_enum,
-        default_value = "gpt-5.6-luna"
-    )]
+    #[clap(long = "model", short = 'm', value_enum, default_value = "gpt-6-luna")]
     model: Option<Model>,
     /// Use Web Search API
     #[clap(long = "web")]

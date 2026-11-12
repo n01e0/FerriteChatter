@@ -10,7 +10,7 @@ use std::io::{Write, stdout};
 use tokio::sync::mpsc::Receiver;
 
 generate_models!();
-pub const DEFAULT_MODEL: Model = Model::Gpt_5_Chat_Latest;
+pub const DEFAULT_MODEL: Model = Model::Gpt_6_Luna;
 
 pub async fn ask(mut stream: Receiver<ChatCompletionDelta>) -> Result<ChatCompletion> {
     let mut merged: Option<ChatCompletionDelta> = None;
