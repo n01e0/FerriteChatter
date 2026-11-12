@@ -4,7 +4,7 @@ version = 4
 
 [[package]]
 name = "FerriteChatter"
-version = "9.4.0"
+version = "9.5.1"
 dependencies = [
  "anyhow",
  "base64 0.23.1",
@@ -750,17 +750,17 @@ dependencies = [
 
 [[package]]
 name = "ferrite_model_gen"
-version = "0.6.1"
+version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "65605de3382deb39fd82e82030597b2d67a611c1838aa5c1a3362a9ddd93097e"
+checksum = "f723e4c1526d9ea451903a3cb976050942af7377fd0862228f09fda209eb92cd"
 dependencies = [
  "anyhow",
  "clap",
  "quote",
- "reqwest 0.12.28",
+ "reqwest 0.13.5",
  "serde",
  "serde_json",
- "syn 2.0.119",
+ "syn 3.0.10",
  "tokio",
 ]
 
@@ -2091,21 +2091,16 @@ checksum = "eddd3ca559203180a307f12d114c268abf583f59b03cb906fd0b3ff8646c1147"
 dependencies = [
  "base64 0.22.1",
  "bytes",
- "encoding_rs",
- "futures-channel",
  "futures-core",
  "futures-util",
- "h2",
  "http",
  "http-body",
  "http-body-util",
  "hyper",
- "hyper-rustls",
  "hyper-tls",
  "hyper-util",
  "js-sys",
  "log",
- "mime",
  "mime_guess",
  "native-tls",
  "percent-encoding",
@@ -2137,6 +2132,7 @@ dependencies = [
  "base64 0.23.1",
  "bytes",
  "encoding_rs",
+ "futures-channel",
  "futures-core",
  "futures-util",
  "h2",
